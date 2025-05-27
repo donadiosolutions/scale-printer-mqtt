@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "scale-printer-mqtt.fullname" . }}-printer
+  labels:
+    {{- include "scale-printer-mqtt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: printer-daemon
+spec:
+  replicas: {{ .Values.printerDaemon.replicaCount | default .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "scale-printer-mqtt.daemonSelectorLabels" (dict "Chart" . "daemonName" "printer-daemon") | nindent 6 }}
+      app.kubernetes.io/component: printer-daemon
+  template:
+    metadata:
+      labels:
+        {{- include "scale-printer-mqtt.daemonSelectorLabels" (dict "Chart" . "daemonName" "printer-daemon") | nindent 8 }}
+        app.kubernetes.io/component: printer-daemon
+    spec:
+      serviceAccountName: {{ include "scale-printer-mqtt.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.printerDaemon.name }}
+          image: {{ include "scale-printer-mqtt.daemonImage" (dict "Values" .Values "daemonKey" "printerDaemon") }}
+          imagePullPolicy: {{ .Values.printerDaemon.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # Command is set in the Containerfile CMD
+          livenessProbe:
+            {{- toYaml .Values.printerDaemon.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.printerDaemon.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.printerDaemon.resources | nindent 12 }}
+          volumeMounts:
+            - name: dev-ttyusb-printer
+              mountPath: /dev/ttyUSB_PRINTER # Must match SERIAL_DEVICE_PATH in code
+      volumes:
+        - name: dev-ttyusb-printer
+          hostPath:
+            path: /dev/ttyUSB_PRINTER # Must match the actual device path on the node
+            type: CharDevice # Specify it's a character device
+      {{- with .Values.printerDaemon.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.printerDaemon.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

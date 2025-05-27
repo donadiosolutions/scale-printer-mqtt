@@ -1,0 +1,111 @@
+name: Build, Test, and Lint
+
+on:
+  push:
+    branches: [ main, master ] # Adjust to your default branch name
+  pull_request:
+    branches: [ main, master ] # Adjust to your default branch name
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Define daemon names and their paths
+        daemon:
+          - name: scale-daemon
+            path: ./scale_daemon
+          - name: printer-daemon
+            path: ./printer_daemon
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      # Optional: Linting (can be done before building if preferred)
+      # This assumes poetry is installed on the runner or in a pre-built linting image.
+      # For simplicity, this example focuses on build and test.
+      # - name: Lint Python code - ${{ matrix.daemon.name }}
+      #   run: |
+      #     cd ${{ matrix.daemon.path }}
+      #     # Install poetry if not available globally, or use a Python setup action
+      #     # python -m pip install poetry
+      #     # poetry install --with dev
+      #     # poetry run flake8 src/
+      #     # poetry run black --check src/ tests/
+      #   continue-on-error: false # Fail fast if linting fails
+
+      - name: Build Docker Image and Run Unit Tests - ${{ matrix.daemon.name }}
+        # Unit tests are run as part of the Docker build (tester stage in Containerfile)
+        # The build command will fail if unit tests fail.
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t local/${{ matrix.daemon.name }}:test \
+            --output="type=docker" \
+            ${{ matrix.daemon.path }}
+        # Note: --output type=docker is used to load the image into the local Docker daemon
+        # for potential use in subsequent steps (like integration tests if they were run per-daemon).
+        # For just building and testing, --load could also be an option for single platform,
+        # or just letting the build run without loading if only pass/fail is needed.
+        # For multi-platform, --output type=docker is fine if not pushing.
+
+  integration_test:
+    runs-on: ubuntu-latest
+    needs: build_and_test # Ensure images are built (though not directly used unless pushed/loaded)
+                          # For local docker-compose, it will rebuild.
+                          # This 'needs' is more for logical flow.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # The mosquitto_passwd file needs to be correctly formatted.
+      # For CI, it's often better to generate it or use a known good one.
+      # Here, we assume the placeholder is sufficient for mosquitto to start,
+      # or the test setup handles it.
+      # If using plaintext passwords in mosquitto_passwd, mosquitto.conf needs:
+      # auth_opt_password_format plain (Not standard, for testing only)
+      # For now, we'll rely on the existing placeholder.
+      # A more robust CI would use `mosquitto_passwd` to create the file:
+      # - name: Create mosquitto password file
+      #   run: |
+      #     sudo apt-get update && sudo apt-get install -y mosquitto-clients
+      #     mkdir -p mosquitto/config
+      #     mosquitto_passwd -c -b mosquitto/config/mosquitto_passwd scale_user scale_password
+      #     mosquitto_passwd -b mosquitto/config/mosquitto_passwd printer_user printer_password
+
+      - name: Run Integration Tests with Docker Compose
+        run: |
+          docker-compose -f docker-compose.yml up --build --abort-on-container-exit --exit-code-from scale-daemon --timeout 60
+          # The above command will:
+          # --build: Ensure images are built if not present or outdated.
+          # --abort-on-container-exit: Stop all containers if any container exits.
+          # --exit-code-from scale-daemon: Return the exit code of scale-daemon.
+          #                                 If scale-daemon (or printer-daemon) exits non-zero,
+          #                                 the step fails.
+          # --timeout 60: Wait 60 seconds for containers to stop after one exits.
+          #
+          # A more sophisticated integration test would involve:
+          # 1. `docker-compose up -d` (detached mode)
+          # 2. A separate script (e.g., Python with pytest and paho-mqtt client) that:
+          #    - Connects to the mosquitto_broker.
+          #    - Publishes a command to laboratory/scale/command.
+          #    - Subscribes to laboratory/scale/data and verifies expected output.
+          #    - Publishes data to laboratory/scale/data (simulating scale).
+          #    - (If possible) Verifies printer output (harder in CI without physical printer).
+          #    - This script would exit 0 on success, non-zero on failure.
+          # 3. `docker-compose down`
+          # For now, this just checks if the services can start up.
+
+      - name: Docker Compose Down (if tests passed or on failure)
+        if: always() # Ensure cleanup happens
+        run: |
+          docker-compose -f docker-compose.yml down

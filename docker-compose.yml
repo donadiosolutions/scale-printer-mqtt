@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0 # Use a specific version, 2.0.x supports password_file format option
+    container_name: mosquitto_broker
+    ports:
+      - "1883:1883" # Expose MQTT port for local access if needed by test runner
+      # - "8883:8883" # If testing TLS, but current daemons use TLS to external broker
+                      # For local test, non-TLS is simpler unless TLS itself is tested here.
+                      # The python code is set up for TLS (port 8883).
+                      # If we want to test against this local broker, we'd need to:
+                      # 1. Configure mosquitto for TLS (certs, key)
+                      # 2. Change daemon constants to point to localhost:8883 (or make configurable)
+                      # For simplicity of integration test setup, often non-TLS is used locally.
+                      # Let's assume for this docker-compose, the daemons will be configured
+                      # to connect to this local, non-TLS broker for the integration test run.
+                      # This means the python constants MQTT_BROKER_HOST/PORT would need to be
+                      # overridden or the code adapted for testing.
+                      # Given the prompt specifies TLS for the *actual* broker, this local
+                      # test broker might intentionally be simpler.
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      # - ./mosquitto/data:/mosquitto/data # For persistence if enabled
+      # - ./mosquitto/log:/mosquitto/log # For logs if not stdout
+    # command: "mosquitto -c /mosquitto/config/mosquitto.conf" # Implicitly uses this if present
+    networks:
+      - app_net
+
+  scale-daemon:
+    build:
+      context: ./scale_daemon
+      dockerfile: Containerfile
+    container_name: scale_daemon_app
+    depends_on:
+      - mosquitto
+    # For integration tests, we might need to override MQTT_BROKER_HOST
+    # to 'mosquitto' and port to 1883, and disable TLS for this local test.
+    # This can be done via environment variables if the Python app supports it.
+    # Since current Python code has these as constants, an alternative test-specific
+    # config or modification would be needed for the app to talk to this local broker.
+    # For now, this compose file just sets up the build.
+    #
+    # If actual /dev devices were to be mapped (requires host support & permissions):
+    # devices:
+    #   - "/dev/ttyUSB_SCALE:/dev/ttyUSB_SCALE"
+    # privileged: true # Often needed for direct device access
+    environment:
+      # Example: Override constants if app reads from env
+      # MQTT_BROKER_HOST: mosquitto
+      # MQTT_BROKER_PORT: 1883
+      # MQTT_USERNAME: scale_user
+      # MQTT_PASSWORD: scale_password
+      # PYTHONUNBUFFERED: 1 # For immediate log output
+      # MQTT_USE_TLS: "false" # Custom flag if app supports disabling TLS for local tests
+      PYTHONUNBUFFERED: 1
+    networks:
+      - app_net
+
+  printer-daemon:
+    build:
+      context: ./printer_daemon
+      dockerfile: Containerfile
+    container_name: printer_daemon_app
+    depends_on:
+      - mosquitto
+      - scale-daemon # Optional, if printer depends on scale being up first for test flow
+    # Similar environment overrides as scale-daemon might be needed.
+    # devices:
+    #   - "/dev/ttyUSB_PRINTER:/dev/ttyUSB_PRINTER"
+    # privileged: true
+    environment:
+      # MQTT_BROKER_HOST: mosquitto
+      # MQTT_BROKER_PORT: 1883
+      # MQTT_USERNAME: printer_user
+      # MQTT_PASSWORD: printer_password
+      # PYTHONUNBUFFERED: 1
+      # MQTT_USE_TLS: "false"
+      PYTHONUNBUFFERED: 1
+    networks:
+      - app_net
+
+networks:
+  app_net:
+    driver: bridge

@@ -1,0 +1,74 @@
+name: Publish Docker Images to GHCR
+
+on:
+  release:
+    types: [published] # Trigger when a new release is published
+
+jobs:
+  publish_images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Needed to push to GHCR
+
+    strategy:
+      matrix:
+        daemon:
+          - name: scale-daemon
+            path: ./scale_daemon
+            image_name: scale-daemon # Image name in GHCR (lowercase)
+          - name: printer-daemon
+            path: ./printer_daemon
+            image_name: printer-daemon # Image name in GHCR (lowercase)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        # This action sets up the Docker CLI with buildx capabilities
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta for ${{ matrix.daemon.image_name }}
+        id: meta # important to refer to outputs (tags, labels)
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.daemon.image_name }}
+          # Tags:
+          # - type=schedule
+          # - type=ref,event=branch
+          # - type=ref,event=pr
+          # - type=semver,pattern={{version}}
+          # - type=semver,pattern={{major}}.{{minor}}
+          # - type=semver,pattern={{major}}
+          # - type=sha
+          # For releases, we typically want 'latest' and the git tag (version)
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+          # Consider adding more tags like version (e.g., v1.0.0) from the release tag.
+          # The 'type=ref,event=tag' will use the git tag (e.g., v1.0.0) as the Docker tag.
+
+      - name: Build and push Docker image for ${{ matrix.daemon.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.daemon.path }}
+          file: ${{ matrix.daemon.path }}/Containerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

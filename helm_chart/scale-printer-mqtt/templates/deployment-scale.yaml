@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "scale-printer-mqtt.fullname" . }}-scale
+  labels:
+    {{- include "scale-printer-mqtt.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scale-daemon
+spec:
+  replicas: {{ .Values.scaleDaemon.replicaCount | default .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "scale-printer-mqtt.daemonSelectorLabels" (dict "Chart" . "daemonName" "scale-daemon") | nindent 6 }}
+      app.kubernetes.io/component: scale-daemon
+  template:
+    metadata:
+      labels:
+        {{- include "scale-printer-mqtt.daemonSelectorLabels" (dict "Chart" . "daemonName" "scale-daemon") | nindent 8 }}
+        app.kubernetes.io/component: scale-daemon
+    spec:
+      serviceAccountName: {{ include "scale-printer-mqtt.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.scaleDaemon.name }}
+          image: {{ include "scale-printer-mqtt.daemonImage" (dict "Values" .Values "daemonKey" "scaleDaemon") }}
+          imagePullPolicy: {{ .Values.scaleDaemon.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # Command is set in the Containerfile CMD
+          # If MQTT config were externalized, env vars or volumeMounts for secrets would be here.
+          # env:
+          #   - name: MQTT_BROKER_HOST
+          #     value: {{ .Values.mqtt.brokerHost | quote }}
+          #   ... etc.
+          livenessProbe:
+            {{- toYaml .Values.scaleDaemon.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.scaleDaemon.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.scaleDaemon.resources | nindent 12 }}
+          volumeMounts:
+            - name: dev-ttyusb-scale
+              mountPath: /dev/ttyUSB_SCALE # Must match SERIAL_DEVICE_PATH in code
+      volumes:
+        - name: dev-ttyusb-scale
+          hostPath:
+            path: /dev/ttyUSB_SCALE # Must match the actual device path on the node
+            type: CharDevice # Specify it's a character device
+      {{- with .Values.scaleDaemon.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scaleDaemon.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

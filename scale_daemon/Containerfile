@@ -1,0 +1,68 @@
+# STAGE 1: Builder
+FROM python:3.12-alpine AS builder
+
+WORKDIR /app
+
+# Install Poetry
+#hadolint ignore=DL3018
+RUN apk add --no-cache curl \
+    && curl -sSL https://install.python-poetry.org | python3 - --version 1.8.2
+
+# Add poetry to PATH
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Copy project definition and lock file (if exists)
+COPY pyproject.toml poetry.lock* ./
+
+# Install dependencies - only main group, no dev dependencies
+# This will also generate poetry.lock if it doesn't exist
+RUN poetry install --no-interaction --no-ansi --no-dev --only main
+
+# Copy the source code
+COPY src/ ./src/
+
+# STAGE 2: Tester
+FROM builder AS tester
+WORKDIR /app
+# Install dev dependencies, including test dependencies
+RUN poetry install --no-interaction --no-ansi --with dev
+# Run tests
+RUN poetry run pytest tests/
+
+# STAGE 3: Final image (renumber from STAGE 2)
+FROM python:3.12-alpine AS final
+
+WORKDIR /app
+
+# Create a non-root user and group
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Copy the virtual environment from the builder stage
+COPY --from=builder /app/.venv ./.venv
+
+# Copy the source code from the builder stage
+COPY --from=builder /app/src/ ./src/
+
+# Set environment variables for the virtual environment and PYTHONPATH
+ENV PATH="/app/.venv/bin:${PATH}"
+ENV PYTHONPATH="/app/src"
+
+# Ensure all files are owned by the appuser
+RUN chown -R appuser:appgroup /app
+
+# Switch to the non-root user
+USER appuser
+
+# Set the default command to run the application
+CMD ["python", "src/scale_daemon/main.py"]
+
+# OCI Labels
+LABEL org.opencontainers.image.title="Scale Daemon"
+LABEL org.opencontainers.image.description="Daemon to read scale data and publish via MQTT."
+LABEL org.opencontainers.image.version="0.1.0"
+LABEL org.opencontainers.image.authors="Cline <cline@example.com>"
+# LABEL org.opencontainers.image.url="URL to project page"
+LABEL org.opencontainers.image.source="https://github.com/your-repo/scale-printer-v2"
+LABEL org.opencontainers.image.licenses="MIT"
+# LABEL org.opencontainers.image.vendor="Your Organization"
+# LABEL org.opencontainers.image.created="YYYY-MM-DDTHH:MM:SSZ" # Note: This should be set dynamically during the build process

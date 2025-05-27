@@ -1,0 +1,29 @@
+{{- /*
+NOTES.txt provides information to the user after the chart is deployed.
+*/ -}}
+The Scale and Printer MQTT daemons have been deployed.
+
+Scale Daemon:
+  Pod name: {{ include "scale-printer-mqtt.fullname" . }}-scale-<ID>
+  Image: {{ include "scale-printer-mqtt.daemonImage" (dict "Values" .Values "daemonKey" "scaleDaemon") }}
+  Device: {{ .Values.scaleDaemon.nodeSelector | default "Any node (if hostPath /dev/ttyUSB_SCALE exists and is accessible)" }} - /dev/ttyUSB_SCALE
+
+Printer Daemon:
+  Pod name: {{ include "scale-printer-mqtt.fullname" . }}-printer-<ID>
+  Image: {{ include "scale-printer-mqtt.daemonImage" (dict "Values" .Values "daemonKey" "printerDaemon") }}
+  Device: {{ .Values.printerDaemon.nodeSelector | default "Any node (if hostPath /dev/ttyUSB_PRINTER exists and is accessible)" }} - /dev/ttyUSB_PRINTER
+
+To check the status of the deployments, run:
+  kubectl get deployments -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+To view logs for the scale daemon:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=scale-daemon,app.kubernetes.io/instance={{ .Release.Name }} -f
+
+To view logs for the printer daemon:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=printer-daemon,app.kubernetes.io/instance={{ .Release.Name }} -f
+
+Important Considerations:
+1. Node Affinity/Selector: Ensure that the `nodeSelector` or `affinity` rules in your `values.yaml` correctly target nodes where the respective serial devices (/dev/ttyUSB_SCALE and /dev/ttyUSB_PRINTER) are available and that the udev rules for these names are active on those nodes.
+2. Device Permissions: The pods run with a security context that allows access to host devices. This typically requires `privileged: true` or specific capabilities and hostPath volume mounts. Ensure your cluster policies allow this and understand the security implications.
+3. MQTT Configuration: MQTT broker details (host, port, credentials, topics) are currently hardcoded in the application Python files as per initial requirements. For production, consider externalizing these via Kubernetes Secrets and environment variables in the Helm chart.
+4. Image Source: The image source URL in `Chart.yaml` and the image repository in `values.yaml` (e.g., `ghcr.io/your-repo/...`) should be updated to your actual repository locations once the images are built and pushed.

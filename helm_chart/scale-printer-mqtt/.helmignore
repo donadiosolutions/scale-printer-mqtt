@@ -1,0 +1,35 @@
+# Patterns to ignore when packaging Helm charts.
+
+# Common VCS files
+.git/
+.gitignore
+.svn/
+.hg/
+
+# Common editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.bak
+
+# Chart Releaser files
+.cr-release-packages/
+.cr-index/
+
+# Temporary files
+tmp/
+temp/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# README files from subdirectories, if any (though not typical for templates)
+*/README.md
+*/NOTES.txt # We only want the top-level NOTES.txt
+
+# Any other local development or test files you don't want in the package
+# For example, if you had local values files for testing:
+# local-values.yaml

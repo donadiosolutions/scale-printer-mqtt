@@ -1,0 +1,142 @@
+# Default values for scale-printer-mqtt chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1 # Typically 1 for device-bound daemons
+
+scaleDaemon:
+  name: scale-daemon
+  image:
+    repository: ghcr.io/your-repo/scale-daemon # Replace with your actual image repo
+    pullPolicy: IfNotPresent
+    tag: "0.1.0" # This should match the appVersion or be set during CI/CD
+
+  # devicePath: "/dev/ttyUSB_SCALE" # This is a constant in the code as per requirements.
+                                  # If it needed to be configurable via Helm, it would be here.
+
+  # Node affinity/selector for scheduling on nodes with the scale device.
+  # Example:
+  # affinity:
+  #   nodeAffinity:
+  #     requiredDuringSchedulingIgnoredDuringExecution:
+  #       nodeSelectorTerms:
+  #       - matchExpressions:
+  #         - key: "feature.node.kubernetes.io/custom-scale-device"
+  #           operator: In
+  #           values:
+  #           - "true"
+  nodeSelector: {} # e.g., { "kubernetes.io/hostname": "specific-node-for-scale" }
+  affinity: {}
+
+  # Liveness and Readiness Probes
+  # These will need to be carefully designed.
+  # For now, a simple process check might be a starting point.
+  # A more robust check might involve checking MQTT connection or a custom health endpoint if added.
+  livenessProbe:
+    exec:
+      command:
+      - pgrep # Check if the main python process is running. This is a basic check.
+      - -f
+      - "src/scale_daemon/main.py"
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    exec:
+      command:
+      - pgrep
+      - -f
+      - "src/scale_daemon/main.py"
+    initialDelaySeconds: 15
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+printerDaemon:
+  name: printer-daemon
+  image:
+    repository: ghcr.io/your-repo/printer-daemon # Replace with your actual image repo
+    pullPolicy: IfNotPresent
+    tag: "0.1.0" # This should match the appVersion or be set during CI/CD
+
+  # devicePath: "/dev/ttyUSB_PRINTER" # Constant in code.
+
+  nodeSelector: {} # e.g., { "kubernetes.io/hostname": "specific-node-for-printer" }
+  affinity: {}
+
+  livenessProbe:
+    exec:
+      command:
+      - pgrep
+      - -f
+      - "src/printer_daemon/main.py"
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    exec:
+      command:
+      - pgrep
+      - -f
+      - "src/printer_daemon/main.py"
+    initialDelaySeconds: 15
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# MQTT Configuration Notes:
+# As per requirements, MQTT broker details, topics, user/pass are constants in the Python code.
+# For a production Helm chart, these would typically be externalized here and passed as
+# environment variables or via Kubernetes Secrets. For example:
+# mqtt:
+#   brokerHost: "mqtt.example.com"
+#   brokerPort: 8883
+#   scaleUserSecretName: "scale-mqtt-credentials" # K8s secret for scale user/pass
+#   printerUserSecretName: "printer-mqtt-credentials" # K8s secret for printer user/pass
+#   scaleDataTopic: "laboratory/scale/data"
+#   scaleCommandTopic: "laboratory/scale/command"
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Pod security context. This might be needed for hostPath device access.
+# Note: Using hostPath and privileged mode has security implications.
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+  # privileged: true # Likely needed for /dev access via hostPath
