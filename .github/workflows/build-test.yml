@@ -50,9 +50,13 @@ jobs:
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             -t local/${{ matrix.daemon.name }}:test \
-            --output="type=docker" \
             ${{ matrix.daemon.path }}
-        # Note: --output type=docker is used to load the image into the local Docker daemon
+        # Note: Removed --output="type=docker" as it's not compatible with multi-platform builds
+        # when not pushing to a registry. The build will still verify multi-platform compatibility
+        # and run tests within the build process.
+        # If images were needed for subsequent steps, they'd typically be pushed to a registry.
+        # For just building and testing, this is sufficient.
+        # --output type=docker is used to load the image into the local Docker daemon
         # for potential use in subsequent steps (like integration tests if they were run per-daemon).
         # For just building and testing, --load could also be an option for single platform,
         # or just letting the build run without loading if only pass/fail is needed.
