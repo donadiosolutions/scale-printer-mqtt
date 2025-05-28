@@ -2,9 +2,9 @@ name: Build, Test, and Lint
 
 on:
   push:
-    branches: [ main, master ] # Adjust to your default branch name
+    branches: master
   pull_request:
-    branches: [ main, master ] # Adjust to your default branch name
+    branches: master
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.sha }}
@@ -73,6 +73,20 @@ jobs:
                           # For local docker-compose, it will rebuild.
                           # This 'needs' is more for logical flow.
     steps:
+      - name: Install Docker Compose
+        run: |
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+              | sudo gpg --dearmor \
+              -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+            echo "deb [arch=$(dpkg --print-architecture) "\
+            "signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] "\
+            "https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+              | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+            sudo apt-get update
+            sudo apt-get install -y docker-compose-plugin
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -93,7 +107,7 @@ jobs:
 
       - name: Run Integration Tests with Docker Compose
         run: |
-          docker-compose -f docker-compose.yml up --build --abort-on-container-exit --exit-code-from scale-daemon --timeout 60
+          docker compose -f docker-compose.yml up --build --abort-on-container-exit --exit-code-from scale-daemon --timeout 60
           # The above command will:
           # --build: Ensure images are built if not present or outdated.
           # --abort-on-container-exit: Stop all containers if any container exits.
@@ -117,4 +131,4 @@ jobs:
       - name: Docker Compose Down (if tests passed or on failure)
         if: always() # Ensure cleanup happens
         run: |
-          docker-compose -f docker-compose.yml down
+          docker compose -f docker-compose.yml down
