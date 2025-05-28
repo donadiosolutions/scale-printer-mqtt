@@ -95,15 +95,17 @@ jobs:
       # Here, we assume the placeholder is sufficient for mosquitto to start,
       # or the test setup handles it.
       # If using plaintext passwords in mosquitto_passwd, mosquitto.conf needs:
-      # auth_opt_password_format plain (Not standard, for testing only)
-      # For now, we'll rely on the existing placeholder.
-      # A more robust CI would use `mosquitto_passwd` to create the file:
-      # - name: Create mosquitto password file
-      #   run: |
-      #     sudo apt-get update && sudo apt-get install -y mosquitto-clients
-      #     mkdir -p mosquitto/config
-      #     mosquitto_passwd -c -b mosquitto/config/mosquitto_passwd scale_user scale_password
-      #     mosquitto_passwd -b mosquitto/config/mosquitto_passwd printer_user printer_password
+
+      # auth_opt_password_format plain (Not standard, for testing only) # This comment is now less relevant as we'll use hashed passwords.
+      # For now, we'll rely on the existing placeholder. # This comment is now less relevant.
+      # A more robust CI would use `mosquitto_passwd` to create the file: # This is what we are doing now.
+      - name: Create mosquitto password file
+        run: |
+          sudo apt-get update && sudo apt-get install -y mosquitto-clients
+          mkdir -p mosquitto/config
+          # Run mosquitto_passwd with sudo as it was installed with sudo
+          sudo mosquitto_passwd -c -b mosquitto/config/mosquitto_passwd scale_user scale_password
+          sudo mosquitto_passwd -b mosquitto/config/mosquitto_passwd printer_user printer_password
 
       - name: Run Integration Tests with Docker Compose
         run: |

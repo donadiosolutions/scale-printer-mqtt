@@ -1,17 +1,2 @@
-# This is a placeholder password file for Mosquitto.
-# It needs to be generated correctly using mosquitto_passwd.
-# For example:
-#   mosquitto_passwd -c -b /path/to/mosquitto_passwd scale_user scale_password
-#   mosquitto_passwd -b /path/to/mosquitto_passwd printer_user printer_password
-#
-# The content below is NOT in the correct encrypted format and is for illustration.
-# Replace with actual encrypted content.
-#
-# scale_user:$7$101$... (encrypted form of scale_password)
-# printer_user:$7$101$... (encrypted form of printer_password)
-
-# For the purpose of having a file, and assuming the test Mosquitto might be
-# configured to accept plain text passwords (not default or recommended for real use),
-# or that the actual test setup will replace this file:
 scale_user:scale_password
 printer_user:printer_password
