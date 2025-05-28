@@ -7,7 +7,7 @@ import ssl
 class ScaleMqttHandler(threading.Thread):
     def __init__(self, broker_host, port, username, password, client_id,
                  data_topic, command_topic, qos, keepalive,
-                 serial_to_mqtt_queue, mqtt_to_serial_queue):
+                 serial_to_mqtt_queue, mqtt_to_serial_queue, use_tls: bool = True):
         super().__init__(name="ScaleMqttHandlerThread")
         self.broker_host = broker_host
         self.port = port
@@ -20,12 +20,13 @@ class ScaleMqttHandler(threading.Thread):
         self.keepalive = keepalive
         self.serial_to_mqtt_queue = serial_to_mqtt_queue # Data from Serial to publish
         self.mqtt_to_serial_queue = mqtt_to_serial_queue # Commands to Serial
+        self.use_tls = use_tls
         self.running = False
         self.client: mqtt.Client | None = None
         self.connection_rc = -1 # To store connection result code
         self.reconnect_delay = 5 # seconds
 
-        logging.info(f"ScaleMqttHandler initialized for broker {self.broker_host}:{self.port}.")
+        logging.info(f"ScaleMqttHandler initialized for broker {self.broker_host}:{self.port} (TLS: {self.use_tls}).")
 
     def _on_connect(self, client, userdata, flags, rc, properties=None):
         self.connection_rc = rc # Store result code
@@ -64,16 +65,18 @@ class ScaleMqttHandler(threading.Thread):
         try:
             self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=self.client_id)
             self.client.username_pw_set(self.username, self.password)
-            self.client.tls_set(
-                # ca_certs=None, # Not needed if server cert is from public CA
-                # certfile=None, # Client cert not required
-                # keyfile=None,  # Client key not required
-                cert_reqs=ssl.CERT_REQUIRED, # Validate server certificate
-                tls_version=ssl.PROTOCOL_TLS_CLIENT,
-            )
-            # For TLSv1.2 and TLSv1.3, PROTOCOL_TLS_CLIENT should pick the highest.
-            # Explicitly: ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1 if needed to restrict older versions.
-            # However, paho-mqtt handles this well by default with PROTOCOL_TLS_CLIENT.
+            if self.use_tls:
+                logging.info("Configuring MQTT client with TLS.")
+                self.client.tls_set(
+                    # ca_certs=None, # Not needed if server cert is from public CA
+                    # certfile=None, # Client cert not required
+                    # keyfile=None,  # Client key not required
+                    cert_reqs=ssl.CERT_REQUIRED, # Validate server certificate
+                    tls_version=ssl.PROTOCOL_TLS_CLIENT,
+                )
+                # For TLSv1.2 and TLSv1.3, PROTOCOL_TLS_CLIENT should pick the highest.
+            else:
+                logging.info("Configuring MQTT client without TLS.")
 
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect

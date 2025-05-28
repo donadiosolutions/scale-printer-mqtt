@@ -46,14 +46,15 @@ services:
     #   - "/dev/ttyUSB_SCALE:/dev/ttyUSB_SCALE"
     # privileged: true # Often needed for direct device access
     environment:
-      # Example: Override constants if app reads from env
-      # MQTT_BROKER_HOST: mosquitto
-      # MQTT_BROKER_PORT: 1883
-      # MQTT_USERNAME: scale_user
-      # MQTT_PASSWORD: scale_password
-      # PYTHONUNBUFFERED: 1 # For immediate log output
-      # MQTT_USE_TLS: "false" # Custom flag if app supports disabling TLS for local tests
+      MQTT_BROKER_HOST: mosquitto
+      MQTT_BROKER_PORT: 1883
+      MQTT_USERNAME: scale_user # Must match mosquitto_passwd
+      MQTT_PASSWORD: scale_password # Must match mosquitto_passwd
+      MQTT_USE_TLS: "false"
       PYTHONUNBUFFERED: 1
+      # For scale_daemon, topics are likely fixed or can use defaults from code
+      # MQTT_DATA_TOPIC: laboratory/scale/data # Default
+      # MQTT_COMMAND_TOPIC: laboratory/scale/command # Default
     networks:
       - app_net
 
@@ -70,13 +71,14 @@ services:
     #   - "/dev/ttyUSB_PRINTER:/dev/ttyUSB_PRINTER"
     # privileged: true
     environment:
-      # MQTT_BROKER_HOST: mosquitto
-      # MQTT_BROKER_PORT: 1883
-      # MQTT_USERNAME: printer_user
-      # MQTT_PASSWORD: printer_password
-      # PYTHONUNBUFFERED: 1
-      # MQTT_USE_TLS: "false"
+      MQTT_BROKER_HOST: mosquitto
+      MQTT_BROKER_PORT: 1883
+      MQTT_USERNAME: printer_user # Must match mosquitto_passwd
+      MQTT_PASSWORD: printer_password # Must match mosquitto_passwd
+      MQTT_USE_TLS: "false"
       PYTHONUNBUFFERED: 1
+      # For printer_daemon, print topic should match scale's data topic
+      # MQTT_PRINT_TOPIC: laboratory/scale/data # Default
     networks:
       - app_net
 

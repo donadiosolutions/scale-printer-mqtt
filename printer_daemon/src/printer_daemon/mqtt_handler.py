@@ -8,7 +8,7 @@ import queue
 class PrinterMqttHandler(threading.Thread):
     def __init__(self, broker_host, port, username, password, client_id,
                  print_topic, qos, keepalive,
-                 mqtt_to_serial_queue: queue.Queue):
+                 mqtt_to_serial_queue: queue.Queue, use_tls: bool = True):
         super().__init__(name="PrinterMqttHandlerThread")
         self.broker_host = broker_host
         self.port = port
@@ -19,12 +19,13 @@ class PrinterMqttHandler(threading.Thread):
         self.qos = qos
         self.keepalive = keepalive
         self.mqtt_to_serial_queue = mqtt_to_serial_queue # Messages to PrinterSerialHandler
+        self.use_tls = use_tls
         self.running = False
         self.client: mqtt.Client | None = None
         self.connection_rc = -1 # To store connection result code
         self.reconnect_delay = 5  # seconds
 
-        logging.info(f"PrinterMqttHandler initialized for broker {self.broker_host}:{self.port}.")
+        logging.info(f"PrinterMqttHandler initialized for broker {self.broker_host}:{self.port} (TLS: {self.use_tls}).")
 
     def _on_connect(self, client, userdata, flags, rc, properties=None):
         self.connection_rc = rc
@@ -62,10 +63,14 @@ class PrinterMqttHandler(threading.Thread):
         try:
             self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=self.client_id)
             self.client.username_pw_set(self.username, self.password)
-            self.client.tls_set(
-                cert_reqs=ssl.CERT_REQUIRED,
-                tls_version=ssl.PROTOCOL_TLS_CLIENT,
-            )
+            if self.use_tls:
+                logging.info("Configuring MQTT client with TLS for printer.")
+                self.client.tls_set(
+                    cert_reqs=ssl.CERT_REQUIRED,
+                    tls_version=ssl.PROTOCOL_TLS_CLIENT,
+                )
+            else:
+                logging.info("Configuring MQTT client without TLS for printer.")
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
             self.client.on_message = self._on_message
