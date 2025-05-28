@@ -103,11 +103,44 @@ jobs:
       # A more robust CI would use `mosquitto_passwd` to create the file: # This is what we are doing now.
       - name: Create mosquitto password file
         run: |
-          sudo apt-get update && sudo apt-get install -y mosquitto-clients
+          # mosquitto_passwd is often in the 'mosquitto' package, not just 'mosquitto-clients'
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends mosquitto mosquitto-clients
+
+          # Find the full path to mosquitto_passwd robustly
+          MOSQUITTO_PASSWD_PATH=""
+          # Attempt 1: dpkg -L (most reliable if package installs to standard locations)
+          # The output of dpkg -L is absolute paths.
+          # Grep for a path ending in /bin/mosquitto_passwd or /sbin/mosquitto_passwd
+          DPKG_OUTPUT=$(dpkg -L mosquitto-clients 2>/dev/null || true) # Capture output, ignore dpkg error if pkg not found (should not happen)
+          if [ -n "$DPKG_OUTPUT" ]; then
+            MOSQUITTO_PASSWD_PATH=$(echo "$DPKG_OUTPUT" | grep -E '(/usr)?/s?bin/mosquitto_passwd$' | head -n 1)
+          fi
+
+          # Attempt 2: which (fallback, relies on PATH which might not be updated for sudo's context)
+          if [ -z "$MOSQUITTO_PASSWD_PATH" ]; then
+            MOSQUITTO_PASSWD_PATH=$(which mosquitto_passwd 2>/dev/null || true)
+          fi
+
+          # Attempt 3: Check common hardcoded paths (last resort)
+          if [ -z "$MOSQUITTO_PASSWD_PATH" ]; then
+            if [ -x "/usr/bin/mosquitto_passwd" ]; then
+                MOSQUITTO_PASSWD_PATH="/usr/bin/mosquitto_passwd"
+            elif [ -x "/usr/sbin/mosquitto_passwd" ]; then
+                MOSQUITTO_PASSWD_PATH="/usr/sbin/mosquitto_passwd"
+            fi
+          fi
+
+          if [ -z "$MOSQUITTO_PASSWD_PATH" ]; then
+            echo "Error: mosquitto_passwd command not found after installation and path checks."
+            echo "dpkg -L output was:"
+            echo "$DPKG_OUTPUT"
+            exit 1
+          fi
+
+          echo "Using mosquitto_passwd at: $MOSQUITTO_PASSWD_PATH"
           mkdir -p mosquitto/config
-          # Run mosquitto_passwd with sudo as it was installed with sudo
-          sudo mosquitto_passwd -c -b mosquitto/config/mosquitto_passwd scale_user scale_password
-          sudo mosquitto_passwd -b mosquitto/config/mosquitto_passwd printer_user printer_password
+          sudo $MOSQUITTO_PASSWD_PATH -c -b mosquitto/config/mosquitto_passwd scale_user scale_password
+          sudo $MOSQUITTO_PASSWD_PATH -b mosquitto/config/mosquitto_passwd printer_user printer_password
 
       - name: Run Integration Tests with Docker Compose
         run: |
