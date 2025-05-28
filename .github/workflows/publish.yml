@@ -6,7 +6,7 @@ on:
 
 jobs:
   publish_images:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-m
     permissions:
       contents: read
       packages: write # Needed to push to GHCR
@@ -45,7 +45,7 @@ jobs:
         id: meta # important to refer to outputs (tags, labels)
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.daemon.image_name }}
+          images: ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}
           # Tags:
           # - type=schedule
           # - type=ref,event=branch

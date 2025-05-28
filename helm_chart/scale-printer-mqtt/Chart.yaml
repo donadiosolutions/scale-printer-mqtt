@@ -12,9 +12,9 @@ keywords:
   - laboratory
   - iot
 
-home: https://github.com/your-repo/scale-printer-v2 # Replace with actual repo URL
+home: https://github.com/donadiosolutions/scale-printer-mqtt
 sources:
-  - https://github.com/your-repo/scale-printer-v2 # Replace with actual repo URL
+  - https://github.com/donadiosolutions/scale-printer-mqtt
 
 # maintainers: # Optional
 #   - name: Your Name

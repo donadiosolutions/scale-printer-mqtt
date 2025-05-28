@@ -7,7 +7,7 @@ replicaCount: 1 # Typically 1 for device-bound daemons
 scaleDaemon:
   name: scale-daemon
   image:
-    repository: ghcr.io/your-repo/scale-daemon # Replace with your actual image repo
+    repository: ghcr.io/donadiosolutions/scale-daemon
     pullPolicy: IfNotPresent
     tag: "0.1.0" # This should match the appVersion or be set during CI/CD
 
@@ -68,7 +68,7 @@ scaleDaemon:
 printerDaemon:
   name: printer-daemon
   image:
-    repository: ghcr.io/your-repo/printer-daemon # Replace with your actual image repo
+    repository: ghcr.io/donadiosolutions/printer-daemon
     pullPolicy: IfNotPresent
     tag: "0.1.0" # This should match the appVersion or be set during CI/CD
 
