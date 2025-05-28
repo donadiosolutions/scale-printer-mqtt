@@ -14,9 +14,12 @@ ENV PATH="/root/.local/bin:${PATH}"
 # Copy project definition and lock file (if exists)
 COPY pyproject.toml poetry.lock* ./
 
-# Install dependencies - only main group, no dev dependencies
+# Configure poetry to create venv in project (creates poetry.toml)
+RUN poetry config virtualenvs.in-project true --local
+
+# Install dependencies - only main group, no dev dependencies, and don't install the project itself
 # This will also generate poetry.lock if it doesn't exist
-RUN poetry install --no-interaction --no-ansi --no-dev --only main
+RUN poetry install --no-interaction --no-ansi --no-dev --only main --no-root
 
 # Copy the source code
 COPY src/ ./src/
@@ -24,8 +27,9 @@ COPY src/ ./src/
 # STAGE 2: Tester
 FROM builder AS tester
 WORKDIR /app
+# poetry.toml from builder stage should ensure virtualenvs.in-project is true
 # Install dev dependencies, including test dependencies
-RUN poetry install --no-interaction --no-ansi --with dev
+RUN poetry install --no-interaction --no-ansi --with dev --no-root
 # Run tests
 RUN poetry run pytest tests/
 
