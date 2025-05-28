@@ -5,7 +5,10 @@ services:
     image: eclipse-mosquitto:2.0 # Use a specific version, 2.0.x supports password_file format option
     container_name: mosquitto_broker
     ports:
-      - "1883:1883" # Expose MQTT port for local access if needed by test runner
+      # Map container port 1883 to a random available port on the host.
+      # This avoids "address already in use" errors in CI.
+      # Daemons will connect to "mosquitto:1883" on the internal Docker network.
+      - "1883"
       # - "8883:8883" # If testing TLS, but current daemons use TLS to external broker
                       # For local test, non-TLS is simpler unless TLS itself is tested here.
                       # The python code is set up for TLS (port 8883).
