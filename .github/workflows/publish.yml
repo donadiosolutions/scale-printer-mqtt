@@ -6,7 +6,7 @@ on:
 
 jobs:
   publish_images:
-    runs-on: [ubuntu-latest-m, ubuntu-latest]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write # Needed to push to GHCR

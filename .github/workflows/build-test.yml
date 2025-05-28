@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   build_and_test:
-    runs-on: [ubuntu-latest-m, ubuntu-latest]
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         # Define daemon names and their paths
@@ -68,7 +68,7 @@ jobs:
         # For multi-platform, --output type=docker is fine if not pushing.
 
   integration_test:
-    runs-on: [ubuntu-latest-m, ubuntu-latest]
+    runs-on: ubuntu-latest
     needs: build_and_test # Ensure images are built (though not directly used unless pushed/loaded)
                           # For local docker-compose, it will rebuild.
                           # This 'needs' is more for logical flow.
