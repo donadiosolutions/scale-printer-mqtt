@@ -55,6 +55,8 @@ jobs:
             --platform linux/amd64,linux/arm64 \
             -f ${{ matrix.daemon.path }}/Containerfile \
             -t local/${{ matrix.daemon.name }}:test \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
             ${{ matrix.daemon.path }}
         # Note: Removed --output="type=docker" as it's not compatible with multi-platform builds
         # when not pushing to a registry. The build will still verify multi-platform compatibility
