@@ -1,4 +1,4 @@
-name: Build, Test, and Lint
+name: Build and Test Daemons
 
 on:
   push:
@@ -7,21 +7,47 @@ on:
     branches: [master]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.sha }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SCALE_DAEMON_IMAGE_BASE: local/scale-daemon
+  PRINTER_DAEMON_IMAGE_BASE: local/printer-daemon
+  IMAGE_TAG: ci-${{ github.sha }}
+
 jobs:
-  build_and_test:
+  determine_platforms:
     runs-on: ubuntu-latest
+    outputs:
+      platforms: ${{ steps.build_platforms.outputs.platforms }}
+      platforms_for_display: ${{ steps.build_platforms.outputs.platforms_for_display }}
+    steps:
+      - name: Determine Build Platforms
+        id: build_platforms
+        run: |
+          if [ -n "${{ env.PLATFORMS_OVERRIDE }}" ]; then
+            echo "Using overridden platforms: ${{ env.PLATFORMS_OVERRIDE }}"
+            echo "platforms=${{ env.PLATFORMS_OVERRIDE }}" >> $GITHUB_OUTPUT
+            echo "platforms_for_display=$(echo ${{ env.PLATFORMS_OVERRIDE }} | tr ',' ' ')" >> $GITHUB_OUTPUT
+          else
+            DEFAULT_PLATFORMS="linux/amd64,linux/arm64"
+            echo "Using default platforms: $DEFAULT_PLATFORMS"
+            echo "platforms=$DEFAULT_PLATFORMS" >> $GITHUB_OUTPUT
+            echo "platforms_for_display=$(echo $DEFAULT_PLATFORMS | tr ',' ' ')" >> $GITHUB_OUTPUT
+          fi
+
+  build_images:
+    runs-on: ubuntu-latest
+    needs: determine_platforms
     strategy:
       matrix:
-        # Define daemon names and their paths
         daemon:
           - name: scale-daemon
             path: ./scale_daemon
+            image_base_env_var: SCALE_DAEMON_IMAGE_BASE
           - name: printer-daemon
             path: ./printer_daemon
-
+            image_base_env_var: PRINTER_DAEMON_IMAGE_BASE
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,98 +58,82 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ needs.determine_platforms.outputs.platforms }}
 
-      # Optional: Linting (can be done before building if preferred)
-      # This assumes poetry is installed on the runner or in a pre-built linting image.
-      # For simplicity, this example focuses on build and test.
-      # - name: Lint Python code - ${{ matrix.daemon.name }}
-      #   run: |
-      #     cd ${{ matrix.daemon.path }}
-      #     # Install poetry if not available globally, or use a Python setup action
-      #     # python -m pip install poetry
-      #     # poetry install --with dev
-      #     # poetry run flake8 src/
-      #     # poetry run black --check src/ tests/
-      #   continue-on-error: false # Fail fast if linting fails
+      - name: Build and Cache Image - ${{ matrix.daemon.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.daemon.path }}
+          file: ${{ matrix.daemon.path }}/Containerfile
+          platforms: ${{ needs.determine_platforms.outputs.platforms }}
+          push: false
+          load: true
+          tags: ${{ env[matrix.daemon.image_base_env_var] }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: final
 
-      - name: Build Docker Image and Run Unit Tests - ${{ matrix.daemon.name }}
-        # Unit tests are run as part of the Docker build (tester stage in Containerfile)
-        # The build command will fail if unit tests fail.
+  unit_test_images:
+    runs-on: ubuntu-latest
+    needs: [determine_platforms, build_images]
+    strategy:
+      matrix:
+        daemon:
+          - name: scale-daemon
+            path: ./scale_daemon
+          - name: printer-daemon
+            path: ./printer_daemon
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ needs.determine_platforms.outputs.platforms }}
+
+      - name: Run Unit Tests - ${{ matrix.daemon.name }}
         run: |
           docker buildx build \
-            --platform linux/amd64 \ # ,linux/arm64 \ # TEMPORARILY DISABLED
+            --platform ${{ needs.determine_platforms.outputs.platforms_for_display }} \
             -f ${{ matrix.daemon.path }}/Containerfile \
-            -t local/${{ matrix.daemon.name }}:test \
+            --target tester \
             --cache-from type=gha \
-            --cache-to type=gha,mode=max \
+            --load \
             ${{ matrix.daemon.path }}
-        # Note: Removed --output="type=docker" as it's not compatible with multi-platform builds
-        # when not pushing to a registry. The build will still verify multi-platform compatibility
-        # and run tests within the build process.
-        # If images were needed for subsequent steps, they'd typically be pushed to a registry.
-        # For just building and testing, this is sufficient.
-        # --output type=docker is used to load the image into the local Docker daemon
-        # for potential use in subsequent steps (like integration tests if they were run per-daemon).
-        # For just building and testing, --load could also be an option for single platform,
-        # or just letting the build run without loading if only pass/fail is needed.
-        # For multi-platform, --output type=docker is fine if not pushing.
 
   integration_test:
     runs-on: ubuntu-latest
-    needs: build_and_test # Ensure images are built (though not directly used unless pushed/loaded)
-                          # For local docker-compose, it will rebuild.
-                          # This 'needs' is more for logical flow.
+    needs: [build_images, unit_test_images]
     steps:
       - name: Install Docker Compose
         run: |
             curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
               | sudo gpg --dearmor \
               -o /usr/share/keyrings/docker-archive-keyring.gpg
-
-            echo "deb [arch=$(dpkg --print-architecture) "\
-            "signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] "\
-            "https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
               | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
             sudo apt-get update
-            # Attempt to remove moby-compose if it exists, to avoid conflict
             sudo apt-get remove -y moby-compose || echo "moby-compose not found, proceeding."
             sudo apt-get install -y docker-compose-plugin
 
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # The mosquitto_passwd file needs to be correctly formatted.
-      # For CI, it's often better to generate it or use a known good one.
-      # Here, we assume the placeholder is sufficient for mosquitto to start,
-      # or the test setup handles it.
-      # If using plaintext passwords in mosquitto_passwd, mosquitto.conf needs:
-
-      # auth_opt_password_format plain (Not standard, for testing only) # This comment is now less relevant as we'll use hashed passwords.
-      # For now, we'll rely on the existing placeholder. # This comment is now less relevant.
-      # A more robust CI would use `mosquitto_passwd` to create the file: # This is what we are doing now.
       - name: Create mosquitto password file
         run: |
-          # mosquitto_passwd is often in the 'mosquitto' package, not just 'mosquitto-clients'
           sudo apt-get update && sudo apt-get install -y --no-install-recommends mosquitto mosquitto-clients
-
-          # Find the full path to mosquitto_passwd robustly
           MOSQUITTO_PASSWD_PATH=""
-          # Attempt 1: dpkg -L (most reliable if package installs to standard locations)
-          # The output of dpkg -L is absolute paths.
-          # Grep for a path ending in /bin/mosquitto_passwd or /sbin/mosquitto_passwd
-          DPKG_OUTPUT=$(dpkg -L mosquitto-clients 2>/dev/null || true) # Capture output, ignore dpkg error if pkg not found (should not happen)
+          DPKG_OUTPUT=$(dpkg -L mosquitto-clients 2>/dev/null || true)
           if [ -n "$DPKG_OUTPUT" ]; then
             MOSQUITTO_PASSWD_PATH=$(echo "$DPKG_OUTPUT" | grep -E '(/usr)?/s?bin/mosquitto_passwd$' | head -n 1)
           fi
-
-          # Attempt 2: which (fallback, relies on PATH which might not be updated for sudo's context)
           if [ -z "$MOSQUITTO_PASSWD_PATH" ]; then
             MOSQUITTO_PASSWD_PATH=$(which mosquitto_passwd 2>/dev/null || true)
           fi
-
-          # Attempt 3: Check common hardcoded paths (last resort)
           if [ -z "$MOSQUITTO_PASSWD_PATH" ]; then
             if [ -x "/usr/bin/mosquitto_passwd" ]; then
                 MOSQUITTO_PASSWD_PATH="/usr/bin/mosquitto_passwd"
@@ -131,52 +141,35 @@ jobs:
                 MOSQUITTO_PASSWD_PATH="/usr/sbin/mosquitto_passwd"
             fi
           fi
-
           if [ -z "$MOSQUITTO_PASSWD_PATH" ]; then
             echo "Error: mosquitto_passwd command not found after installation and path checks."
             echo "dpkg -L output was:"
             echo "$DPKG_OUTPUT"
             exit 1
           fi
-
           echo "Using mosquitto_passwd at: $MOSQUITTO_PASSWD_PATH"
           mkdir -p mosquitto/config
-          # Ensure the password file is created fresh
           sudo rm -f mosquitto/config/mosquitto_passwd
-          sudo $MOSQUITTO_PASSWD_PATH -c -b mosquitto/config/mosquitto_passwd scale_user scale_password
-          sudo $MOSQUITTO_PASSWD_PATH -b mosquitto/config/mosquitto_passwd printer_user printer_password
-
+          sudo $MOSQUITTO_PASSWD_PATH -c mosquitto/config/mosquitto_passwd scale_user scale_password
+          sudo $MOSQUITTO_PASSWD_PATH mosquitto/config/mosquitto_passwd printer_user printer_password
           echo "Setting permissions for mosquitto_passwd file..."
           sudo chown root:root mosquitto/config/mosquitto_passwd
-          # Make it readable by others so the mosquitto user in the container can read it.
-          # Mosquitto might warn about this, but it's often necessary for Docker volume mounts from host.
-          sudo chmod 0644 mosquitto/config/mosquitto_passwd
+          sudo chmod 0600 mosquitto/config/mosquitto_passwd
           echo "Permissions set."
+
+      - name: Prepare .env file for Docker Compose
+        run: |
+          echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" > .env
+          echo "SCALE_DAEMON_IMAGE_NAME=${{ env.SCALE_DAEMON_IMAGE_BASE }}" >> .env
+          echo "PRINTER_DAEMON_IMAGE_NAME=${{ env.PRINTER_DAEMON_IMAGE_BASE }}" >> .env
+          echo "Generated .env file for Docker Compose:"
+          cat .env
 
       - name: Run Integration Tests with Docker Compose
         run: |
-          docker compose -f docker-compose.yml up --build --abort-on-container-exit --exit-code-from scale-daemon --timeout 60
-          # The above command will:
-          # --build: Ensure images are built if not present or outdated.
-          # --abort-on-container-exit: Stop all containers if any container exits.
-          # --exit-code-from scale-daemon: Return the exit code of scale-daemon.
-          #                                 If scale-daemon (or printer-daemon) exits non-zero,
-          #                                 the step fails.
-          # --timeout 60: Wait 60 seconds for containers to stop after one exits.
-          #
-          # A more sophisticated integration test would involve:
-          # 1. `docker-compose up -d` (detached mode)
-          # 2. A separate script (e.g., Python with pytest and paho-mqtt client) that:
-          #    - Connects to the mosquitto_broker.
-          #    - Publishes a command to laboratory/scale/command.
-          #    - Subscribes to laboratory/scale/data and verifies expected output.
-          #    - Publishes data to laboratory/scale/data (simulating scale).
-          #    - (If possible) Verifies printer output (harder in CI without physical printer).
-          #    - This script would exit 0 on success, non-zero on failure.
-          # 3. `docker-compose down`
-          # For now, this just checks if the services can start up.
+          docker compose -f docker-compose.yml up --abort-on-container-exit --exit-code-from scale-daemon --timeout 60
 
       - name: Docker Compose Down (if tests passed or on failure)
-        if: always() # Ensure cleanup happens
+        if: always()
         run: |
           docker compose -f docker-compose.yml down

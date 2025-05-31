@@ -30,6 +30,10 @@ WORKDIR /app
 # poetry.toml from builder stage should ensure virtualenvs.in-project is true
 # Install dev dependencies, including test dependencies
 RUN poetry install --no-interaction --no-ansi --with dev --no-root
+# Copy the tests
+COPY tests/ ./tests/
+# Set PYTHONPATH for tests to find modules
+ENV PYTHONPATH="/app/src"
 # Run tests
 RUN poetry run pytest tests/
 

@@ -31,9 +31,7 @@ services:
       - app_net
 
   scale-daemon:
-    build:
-      context: ./scale_daemon
-      dockerfile: Containerfile
+    image: ${SCALE_DAEMON_IMAGE_NAME}:${IMAGE_TAG}
     container_name: scale_daemon_app
     depends_on:
       - mosquitto
@@ -62,9 +60,7 @@ services:
       - app_net
 
   printer-daemon:
-    build:
-      context: ./printer_daemon
-      dockerfile: Containerfile
+    image: ${PRINTER_DAEMON_IMAGE_NAME}:${IMAGE_TAG}
     container_name: printer_daemon_app
     depends_on:
       - mosquitto
