@@ -37,6 +37,8 @@ jobs:
   build_images:
     runs-on: ubuntu-latest
     needs: determine_platforms
+    permissions:
+      packages: write
     strategy:
       matrix:
         daemon:
