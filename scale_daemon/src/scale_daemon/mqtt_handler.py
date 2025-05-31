@@ -38,8 +38,11 @@ class ScaleMqttHandler(threading.Thread):
         else:
             logging.error(f"Failed to connect to MQTT broker: {mqtt.connack_string(rc)}")
 
-    def _on_disconnect(self, client, userdata, rc, properties=None):
-        logging.warning(f"Disconnected from MQTT broker: {mqtt.connack_string(rc)}. Will attempt to reconnect.")
+    def _on_disconnect(self, client, userdata, flags, reasoncode, properties=None):
+        if isinstance(reasoncode, int): # For older paho-mqtt or v1 style rc
+            logging.warning(f"Disconnected from MQTT broker: {mqtt.connack_string(reasoncode)}. Will attempt to reconnect.")
+        else: # For paho-mqtt v2 ReasonCode object
+            logging.warning(f"Disconnected from MQTT broker: {reasoncode}. Will attempt to reconnect.")
         # Reconnection will be handled by the run loop
 
     def _on_message(self, client, userdata, msg: mqtt.MQTTMessage):

@@ -58,7 +58,7 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 
 # Set the default command to run the application
-CMD ["python", "src/scale_daemon/main.py"]
+CMD ["python", "-m", "scale_daemon.main"]
 
 # OCI Labels
 LABEL org.opencontainers.image.title="Scale Daemon"

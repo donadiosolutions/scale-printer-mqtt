@@ -58,7 +58,7 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 
 # Set the default command to run the application
-CMD ["python", "src/printer_daemon/main.py"]
+CMD ["python", "-m", "printer_daemon.main"]
 
 # OCI Labels
 LABEL org.opencontainers.image.title="Printer Daemon"

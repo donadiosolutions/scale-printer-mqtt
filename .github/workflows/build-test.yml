@@ -2,9 +2,9 @@ name: Build, Test, and Lint
 
 on:
   push:
-    branches: master
+    branches: [master]
   pull_request:
-    branches: master
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.sha }}
@@ -87,6 +87,8 @@ jobs:
               | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
             sudo apt-get update
+            # Attempt to remove moby-compose if it exists, to avoid conflict
+            sudo apt-get remove -y moby-compose || echo "moby-compose not found, proceeding."
             sudo apt-get install -y docker-compose-plugin
 
       - name: Checkout code
@@ -139,12 +141,16 @@ jobs:
 
           echo "Using mosquitto_passwd at: $MOSQUITTO_PASSWD_PATH"
           mkdir -p mosquitto/config
+          # Ensure the password file is created fresh
+          sudo rm -f mosquitto/config/mosquitto_passwd
           sudo $MOSQUITTO_PASSWD_PATH -c -b mosquitto/config/mosquitto_passwd scale_user scale_password
           sudo $MOSQUITTO_PASSWD_PATH -b mosquitto/config/mosquitto_passwd printer_user printer_password
 
           echo "Setting permissions for mosquitto_passwd file..."
           sudo chown root:root mosquitto/config/mosquitto_passwd
-          sudo chmod 0700 mosquitto/config/mosquitto_passwd # As suggested by Mosquitto warning
+          # Make it readable by others so the mosquitto user in the container can read it.
+          # Mosquitto might warn about this, but it's often necessary for Docker volume mounts from host.
+          sudo chmod 0644 mosquitto/config/mosquitto_passwd
           echo "Permissions set."
 
       - name: Run Integration Tests with Docker Compose
