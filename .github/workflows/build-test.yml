@@ -52,7 +52,7 @@ jobs:
         # The build command will fail if unit tests fail.
         run: |
           docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/amd64 \ # ,linux/arm64 \ # TEMPORARILY DISABLED
             -f ${{ matrix.daemon.path }}/Containerfile \
             -t local/${{ matrix.daemon.name }}:test \
             --cache-from type=gha \
