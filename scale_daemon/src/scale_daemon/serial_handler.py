@@ -15,12 +15,23 @@ class ScaleSerialHandler(threading.Thread):
         self.running = False
         self.ser: serial.Serial | None = None
         self.reconnect_delay = 5 # seconds
-        logging.info(
-            f"ScaleSerialHandler initialized for {self.device_path} at {self.baudrate} baud."
-        )
+        self.mock_mode = os.getenv("MOCK_SERIAL_DEVICES") == "true"
+
+        if self.mock_mode:
+            logging.info(
+                f"ScaleSerialHandler initialized in MOCK MODE for {self.device_path}."
+            )
+        else:
+            logging.info(
+                f"ScaleSerialHandler initialized for {self.device_path} at {self.baudrate} baud."
+            )
 
     def _connect_serial(self):
-        """Attempts to connect to the serial port."""
+        """Attempts to connect to the serial port or simulates connection in mock mode."""
+        if self.mock_mode:
+            logging.info(f"MOCK MODE: Simulating successful connection to {self.device_path}.")
+            return True
+
         if not os.path.exists(self.device_path):
             logging.warning(f"Serial device {self.device_path} not found. Will retry in {self.reconnect_delay}s.")
             return False
@@ -41,7 +52,12 @@ class ScaleSerialHandler(threading.Thread):
             return False
 
     def _disconnect_serial(self):
-        """Disconnects the serial port if connected."""
+        """Disconnects the serial port if connected or simulates in mock mode."""
+        if self.mock_mode:
+            logging.info(f"MOCK MODE: Simulating disconnection from {self.device_path}.")
+            self.ser = None # Ensure it's None
+            return
+
         if self.ser and self.ser.is_open:
             try:
                 self.ser.close()
@@ -53,25 +69,41 @@ class ScaleSerialHandler(threading.Thread):
     def run(self):
         self.running = True
         logging.info("ScaleSerialHandler thread started.")
-        buffer = bytearray()
+        buffer = bytearray() # Only used in non-mock mode
 
         while self.running:
+            if self.mock_mode:
+                # --- MOCK MODE ---
+                if not self.mqtt_to_serial_queue.empty():
+                    command: bytes = self.mqtt_to_serial_queue.get()
+                    logging.info(f"MOCK MODE: Received command for scale: {command!r} (not sent to device)")
+                    self.mqtt_to_serial_queue.task_done()
+
+                # Simulate work or just pause to prevent busy loop
+                # If mock data needs to be sent to MQTT:
+                # self.serial_to_mqtt_queue.put("MOCK_SCALE_DATA")
+                time.sleep(0.1)
+                continue # Skip real serial logic
+
+            # --- NON-MOCK MODE (original logic mostly from here) ---
             if self.ser is None or not self.ser.is_open:
-                self._disconnect_serial() # Ensure it's fully closed before retrying
+                self._disconnect_serial()
                 if not self._connect_serial():
                     time.sleep(self.reconnect_delay)
-                    continue # Retry connection
+                    continue
 
             try:
                 # 1. Read commands from MQTT queue and write to scale
                 if not self.mqtt_to_serial_queue.empty():
                     command: bytes = self.mqtt_to_serial_queue.get()
+                    # Ensure self.ser is valid before using (it should be if not in mock_mode and connected)
                     if self.ser and self.ser.is_open:
                         logging.info(f"Sending command to scale: {command!r}")
                         self.ser.write(command)
                     self.mqtt_to_serial_queue.task_done()
 
                 # 2. Read data from scale
+                # Ensure self.ser is valid before using
                 if self.ser and self.ser.is_open and self.ser.in_waiting > 0:
                     byte = self.ser.read(1)
                     if byte:
@@ -89,7 +121,6 @@ class ScaleSerialHandler(threading.Thread):
                 elif self.ser and not self.ser.is_open: # Port closed unexpectedly
                     logging.warning(f"Serial port {self.device_path} closed unexpectedly. Attempting to reconnect.")
                     self._disconnect_serial() # Clean up
-                    # Loop will attempt to reconnect
 
             except serial.SerialException as e:
                 logging.error(f"SerialException in ScaleSerialHandler: {e}. Attempting to reconnect.")

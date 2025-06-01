@@ -41,6 +41,8 @@ services:
       MQTT_PASSWORD: scale_password # Must match mosquitto_passwd
       MQTT_USE_TLS: "false"
       PYTHONUNBUFFERED: 1
+      MOCK_SERIAL_DEVICES: ${MOCK_SERIAL_DEVICES}
+      RUN_INTEGRATION_TEST: ${RUN_INTEGRATION_TEST}
       # For scale_daemon, topics are likely fixed or can use defaults from code
       # MQTT_DATA_TOPIC: laboratory/scale/data # Default
       # MQTT_COMMAND_TOPIC: laboratory/scale/command # Default
@@ -64,6 +66,7 @@ services:
       MQTT_PASSWORD: printer_password # Must match mosquitto_passwd
       MQTT_USE_TLS: "false"
       PYTHONUNBUFFERED: 1
+      MOCK_SERIAL_DEVICES: ${MOCK_SERIAL_DEVICES}
       # For printer_daemon, print topic should match scale's data topic
       # MQTT_PRINT_TOPIC: laboratory/scale/data # Default
     networks:

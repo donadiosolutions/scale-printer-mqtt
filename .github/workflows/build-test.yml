@@ -129,6 +129,7 @@ jobs:
   integration_test:
     runs-on: ubuntu-latest
     needs: [build_images, unit_test_images]
+    timeout-minutes: 5
     steps:
       - name: Install Docker Compose
         run: |
@@ -156,12 +157,14 @@ jobs:
           echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" > .env
           echo "SCALE_DAEMON_IMAGE_NAME=ghcr.io/${{ github.repository }}/scale-daemon" >> .env
           echo "PRINTER_DAEMON_IMAGE_NAME=ghcr.io/${{ github.repository }}/printer-daemon" >> .env
+          echo "MOCK_SERIAL_DEVICES=true" >> .env
+          echo "RUN_INTEGRATION_TEST=true" >> .env
           echo "Generated .env file for Docker Compose:"
           cat .env
 
       - name: Run Integration Tests with Docker Compose
         run: |
-          docker compose -f docker-compose.yml up --abort-on-container-exit --exit-code-from scale-daemon --timeout 60
+          docker compose -f docker-compose.yml up --abort-on-container-exit --exit-code-from scale-daemon --timeout 45
 
       - name: Docker Compose Down (if tests passed or on failure)
         if: always()

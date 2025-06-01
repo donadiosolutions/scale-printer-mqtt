@@ -161,10 +161,14 @@ class ScaleMqttHandler(threading.Thread):
                 self.client.loop_stop() # Stop the network loop
                 self.client.disconnect()
             else: # If loop_stop was called due to connection failure, ensure disconnect is attempted
-                self.client.loop_stop(force=True) # Ensure loop is stopped
+                self.client.loop_stop() # Ensure loop is stopped
         logging.info("ScaleMqttHandler thread stopped.")
 
     def stop(self):
         self.running = False
         logging.info("Stopping ScaleMqttHandler thread...")
         # The join() in main will wait for the run loop to exit
+
+    def is_connected_for_test(self) -> bool:
+        """Checks if the MQTT client is currently connected."""
+        return self.client is not None and self.client.is_connected()

@@ -3,6 +3,7 @@ import threading
 import queue
 import time
 import os
+import sys
 
 from .serial_handler import ScaleSerialHandler
 from .mqtt_handler import ScaleMqttHandler
@@ -41,10 +42,52 @@ def setup_logging():
     logging.info("Logging configured.")
 
 
+def stop_handlers_and_exit(exit_code, serial_h, mqtt_h):
+    logging.info(f"Integration test: Stopping threads and exiting with code {exit_code}...")
+    if mqtt_h and mqtt_h.is_alive():
+        mqtt_h.stop()
+        mqtt_h.join(timeout=5) # Add timeout to join
+    if serial_h and serial_h.is_alive():
+        serial_h.stop()
+        serial_h.join(timeout=5) # Add timeout to join
+    logging.info(f"Integration test: Exiting with {exit_code}.")
+    sys.exit(exit_code)
+
+def run_integration_test(mqtt_handler, serial_handler, serial_to_mqtt_q):
+    """Runs a defined integration test sequence."""
+    logging.info("Integration test: Starting test sequence...")
+
+    serial_handler.start()
+    mqtt_handler.start()
+
+    logging.info("Integration test: Waiting for MQTT connection...")
+    connect_wait_start = time.time()
+    mqtt_connection_timeout = 20  # seconds
+    while not mqtt_handler.is_connected_for_test():
+        if time.time() - connect_wait_start > mqtt_connection_timeout:
+            logging.error("Integration test: MQTT connection timed out.")
+            stop_handlers_and_exit(1, serial_handler, mqtt_handler)
+            return
+        time.sleep(0.2)
+    logging.info("Integration test: MQTT connected successfully.")
+
+    test_message = '{"type": "integration_test", "value": "ping_from_scale_daemon_test"}'
+    logging.info(f"Integration test: Queuing test message for MQTT: {test_message}")
+    serial_to_mqtt_q.put(test_message)
+
+    logging.info("Integration test: Soak time (10s)...")
+    time.sleep(10)
+
+    logging.info("Integration test: Sequence completed successfully.")
+    stop_handlers_and_exit(0, serial_handler, mqtt_handler)
+
+
 def main():
     """Main function to start the daemon."""
     setup_logging()
     logging.info("Starting Scale Daemon...")
+
+    is_integration_test_mode = os.getenv("RUN_INTEGRATION_TEST") == "true"
 
     # Get MQTT config from environment variables or use defaults
     broker_host = os.environ.get("MQTT_BROKER_HOST", MQTT_BROKER_HOST_DEFAULT)
@@ -73,24 +116,35 @@ def main():
         keepalive, serial_to_mqtt_queue, mqtt_to_serial_queue, use_tls=use_tls
     )
 
-    serial_handler.start()
-    mqtt_handler.start()
+    # serial_handler.start() # Moved into conditional blocks
+    # mqtt_handler.start() # Moved into conditional blocks
 
-    try:
-        while True:
-            # Keep main thread alive, or implement other logic
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logging.info("KeyboardInterrupt received. Shutting down...")
-    finally:
-        logging.info("Stopping threads...")
-        if mqtt_handler.is_alive():
-            mqtt_handler.stop()
-            mqtt_handler.join()
-        if serial_handler.is_alive():
-            serial_handler.stop()
-            serial_handler.join()
-        logging.info("Scale Daemon shut down.")
+    if is_integration_test_mode:
+        try:
+            # Handlers are started inside run_integration_test
+            run_integration_test(mqtt_handler, serial_handler, serial_to_mqtt_queue)
+        except Exception as e:
+            logging.error(f"Unhandled exception during integration test: {e}")
+            # Ensure handlers are created before trying to stop them if error is early
+            stop_handlers_and_exit(2, serial_handler, mqtt_handler)
+    else:
+        # Original long-running service logic:
+        serial_handler.start()
+        mqtt_handler.start()
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logging.info("KeyboardInterrupt received. Shutting down...")
+        finally:
+            logging.info("Stopping threads...")
+            if mqtt_handler.is_alive():
+                mqtt_handler.stop()
+                mqtt_handler.join()
+            if serial_handler.is_alive():
+                serial_handler.stop()
+                serial_handler.join()
+            logging.info("Scale Daemon shut down.")
 
 
 if __name__ == "__main__":

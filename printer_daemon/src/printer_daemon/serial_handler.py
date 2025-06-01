@@ -15,12 +15,23 @@ class PrinterSerialHandler(threading.Thread):
         self.running = False
         self.ser: serial.Serial | None = None
         self.reconnect_delay = 5  # seconds
-        logging.info(
-            f"PrinterSerialHandler initialized for {self.device_path} at {self.baudrate} baud."
-        )
+        self.mock_mode = os.getenv("MOCK_SERIAL_DEVICES") == "true"
+
+        if self.mock_mode:
+            logging.info(
+                f"PrinterSerialHandler initialized in MOCK MODE for {self.device_path}."
+            )
+        else:
+            logging.info(
+                f"PrinterSerialHandler initialized for {self.device_path} at {self.baudrate} baud."
+            )
 
     def _connect_serial(self):
-        """Attempts to connect to the serial port."""
+        """Attempts to connect to the serial port or simulates connection in mock mode."""
+        if self.mock_mode:
+            logging.info(f"MOCK MODE: Simulating successful connection to printer {self.device_path}.")
+            return True
+
         if not os.path.exists(self.device_path):
             logging.warning(f"Serial device {self.device_path} not found. Will retry in {self.reconnect_delay}s.")
             return False
@@ -50,7 +61,12 @@ class PrinterSerialHandler(threading.Thread):
 
 
     def _disconnect_serial(self):
-        """Disconnects the serial port if connected."""
+        """Disconnects the serial port if connected or simulates in mock mode."""
+        if self.mock_mode:
+            logging.info(f"MOCK MODE: Simulating disconnection from printer {self.device_path}.")
+            self.ser = None
+            return
+
         if self.ser and self.ser.is_open:
             try:
                 # Ensure output buffer is flushed before closing if necessary, though
@@ -67,6 +83,17 @@ class PrinterSerialHandler(threading.Thread):
         logging.info("PrinterSerialHandler thread started.")
 
         while self.running:
+            if self.mock_mode:
+                # --- MOCK MODE ---
+                if not self.mqtt_to_serial_queue.empty():
+                    message_to_print: str = self.mqtt_to_serial_queue.get()
+                    logging.info(f"MOCK MODE: Received message for printer: '{message_to_print}' (not sent to device)")
+                    self.mqtt_to_serial_queue.task_done()
+
+                time.sleep(0.1)
+                continue # Skip real serial logic
+
+            # --- NON-MOCK MODE (original logic mostly from here) ---
             if self.ser is None or not self.ser.is_open:
                 self._disconnect_serial()
                 if not self._connect_serial():
@@ -76,6 +103,7 @@ class PrinterSerialHandler(threading.Thread):
             try:
                 if not self.mqtt_to_serial_queue.empty():
                     message_to_print: str = self.mqtt_to_serial_queue.get()
+                    # Ensure self.ser is valid before using
                     if self.ser and self.ser.is_open:
                         try:
                             # Ensure message is bytes and add LF
