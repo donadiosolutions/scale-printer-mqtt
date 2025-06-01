@@ -1,0 +1,77 @@
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.egg-info/
+*.egg
+*.whl
+build/
+dist/
+sdist/
+pip-wheel-metadata/
+venv/
+env/
+.venv/
+.env/
+ENV/
+VENV/
+.ipynb_checkpoints/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.prof
+*.pstats
+
+# IDE & Editor Specific
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+nbproject/
+
+# Operating System Specific
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Container Specific
+docker-compose.override.yml
+
+# Helm Chart Specific
+# Packaged charts (if built locally and not meant to be committed)
+*.tgz
+# Dependency charts (if `helm dependency build` downloads charts here)
+# charts/
+
+# Secrets & Sensitive Configuration
+# Environment files (unless it's a template like .env.example)
+*.env
+.env.*
+!*.env.example
+# Local configuration overrides
+local_settings.py
+
+# General/Other
+*.log
+*.tmp
+*.bak
+*.download
