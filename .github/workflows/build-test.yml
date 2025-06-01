@@ -1,4 +1,4 @@
-name: Build and Test Daemons
+name: Build and test images
 
 on:
   push:
