@@ -123,7 +123,6 @@ class TestScaleSerialHandler(unittest.TestCase):
         self.handler.stop()
         self.handler.join()
 
-    @patch('time.sleep', MagicMock())
     def test_run_writes_command_to_scale(self):
         command_to_send = b'T'
         self.mqtt_to_serial_queue.put(command_to_send)
@@ -136,7 +135,6 @@ class TestScaleSerialHandler(unittest.TestCase):
         self.handler.stop()
         self.handler.join()
 
-    @patch('time.sleep', MagicMock())
     def test_run_reconnects_on_serial_exception_during_read(self):
         # Simulate initial successful connection
         self.mock_os_path_exists.return_value = True
@@ -170,7 +168,6 @@ class TestScaleSerialHandler(unittest.TestCase):
         self.handler.stop()
         self.handler.join()
 
-    @patch('time.sleep', MagicMock())
     def test_run_handles_device_disappearance_and_reappearance(self):
         # Device exists initially, then disappears, then reappears
         self.mock_os_path_exists.side_effect = [

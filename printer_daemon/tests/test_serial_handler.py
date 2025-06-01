@@ -160,7 +160,6 @@ class TestPrinterSerialHandler(unittest.TestCase):
         self.assertEqual(self.mqtt_to_serial_queue.get_nowait(), message)
         self.mock_serial_instance.close.assert_called() # _disconnect_serial should be called
 
-    @patch('time.sleep', MagicMock())
     def test_run_reconnects_after_write_failure_and_prints_requeued_message(self):
         message = "Recover Print"
         self.mqtt_to_serial_queue.put(message)

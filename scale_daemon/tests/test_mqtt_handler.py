@@ -115,7 +115,6 @@ class TestScaleMqttHandler(unittest.TestCase):
         self.handler._on_message(self.mock_client_instance, None, mock_msg)
         self.assertTrue(self.mqtt_to_serial_queue.empty())
 
-    @patch('time.sleep', MagicMock())
     def test_run_connects_and_subscribes(self):
         # is_connected will be called once before connect, should return False.
         # After connect, mock_connect will set return_value to True.
@@ -170,7 +169,6 @@ class TestScaleMqttHandler(unittest.TestCase):
         self.handler.stop()
         self.handler.join()
 
-    @patch('time.sleep', MagicMock())
     def test_run_handles_connection_refused_and_retries(self):
         self.mock_client_instance.is_connected.return_value = False
         # First connect attempt raises ConnectionRefusedError, second succeeds

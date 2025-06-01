@@ -97,7 +97,6 @@ class TestPrinterMqttHandler(unittest.TestCase):
         self.handler._on_message(self.mock_client_instance, None, mock_msg)
         self.assertTrue(self.mqtt_to_serial_queue.empty()) # Should not queue empty messages
 
-    @patch('time.sleep', MagicMock())
     def test_run_connects_and_subscribes_main_loop(self):
         # is_connected will be called once before connect, should return False.
         self.mock_client_instance.is_connected.side_effect = [False]
@@ -119,7 +118,6 @@ class TestPrinterMqttHandler(unittest.TestCase):
         self.handler.stop()
         self.handler.join()
 
-    @patch('time.sleep', MagicMock())
     def test_run_handles_connection_failure_and_retries(self):
         self.mock_client_instance.is_connected.return_value = False
 
