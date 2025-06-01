@@ -1,8 +1,9 @@
-name: Publish Docker Images to GHCR
+name: Publish images
 
 on:
   release:
-    types: [published] # Trigger when a new release is published
+    types:
+      - published
 
 jobs:
   publish_images:
@@ -10,16 +11,15 @@ jobs:
     permissions:
       contents: read
       packages: write # Needed to push to GHCR
-
     strategy:
       matrix:
         daemon:
           - name: scale-daemon
             path: ./scale_daemon
-            image_name: scale-daemon # Image name in GHCR (lowercase)
+            image_name: scale-daemon
           - name: printer-daemon
             path: ./printer_daemon
-            image_name: printer-daemon # Image name in GHCR (lowercase)
+            image_name: printer-daemon
 
     steps:
       - name: Checkout code
@@ -29,7 +29,6 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        # This action sets up the Docker CLI with buildx capabilities
         uses: docker/setup-buildx-action@v3
         with:
           platforms: linux/amd64,linux/arm64
@@ -41,27 +40,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker meta for ${{ matrix.daemon.image_name }}
-        id: meta # important to refer to outputs (tags, labels)
+      - name: Generate image metadata for ${{ matrix.daemon.image_name }}
+        id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}
-          # Tags:
-          # - type=schedule
-          # - type=ref,event=branch
-          # - type=ref,event=pr
-          # - type=semver,pattern={{version}}
-          # - type=semver,pattern={{major}}.{{minor}}
-          # - type=semver,pattern={{major}}
-          # - type=sha
-          # For releases, we typically want 'latest' and the git tag (version)
           tags: |
             type=ref,event=tag
             type=raw,value=latest,enable={{is_default_branch}}
-          # Consider adding more tags like version (e.g., v1.0.0) from the release tag.
-          # The 'type=ref,event=tag' will use the git tag (e.g., v1.0.0) as the Docker tag.
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
 
-      - name: Build and push Docker image for ${{ matrix.daemon.name }}
+      - name: Build and push ${{ matrix.daemon.name }} image
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.daemon.path }}
