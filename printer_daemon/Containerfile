@@ -34,8 +34,8 @@ RUN poetry install --no-interaction --no-ansi --with dev --no-root
 COPY tests/ ./tests/
 # Set PYTHONPATH for tests to find modules
 ENV PYTHONPATH="/app/src"
-# Run tests
-RUN poetry run pytest tests/
+# Set default command to run tests
+CMD ["poetry", "run", "pytest", "tests/"]
 
 # STAGE 3: Final image (renumber from STAGE 2)
 FROM python:3.12-alpine AS final
