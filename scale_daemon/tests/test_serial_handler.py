@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock, call
 import queue
 import time
 import os
+import serial
 
 # Assuming the daemon's src directory is in PYTHONPATH for test execution
 # or using relative imports if tests are run as a module.
@@ -146,7 +147,8 @@ class TestScaleSerialHandler(unittest.TestCase):
             serial.SerialException("Read error"), # type: ignore
             b'R', b'E', b'C', b'O', b'V', b'E', b'R', b'E', b'D', b'\n' # Successful read after reconnect
         ]
-        type(self.mock_serial_instance).in_waiting = unittest.mock.PropertyMock(side_effect=[1,1,1,1,1, 0, 1,1,1,1,1,1,1,1,1,1, 0])
+        # Corrected in_waiting: 1 for each byte of "DATA\n", 1 for the read that raises exception, then 1 for each byte of "RECOVERED\n"
+        type(self.mock_serial_instance).in_waiting = unittest.mock.PropertyMock(side_effect=[1,1,1,1,1, 1, 1,1,1,1,1,1,1,1,1,1, 0])
 
 
         self.handler.start()
@@ -175,16 +177,32 @@ class TestScaleSerialHandler(unittest.TestCase):
             True,  # Initial connect
             False, # Device disappears
             False, # Still disappeared
+            True,  # Initial connect
+            False, # Device disappears
+            False, # Still disappeared during retry
             True,  # Device reappears
-            True   # Stays appeared
+            True   # Stays appeared for subsequent checks if any
         ]
-        self.mock_serial_instance.read.side_effect = [
-            b'L',b'I',b'V',b'E',b'\n', # Before disappearance
-            # After reappearance
-            b'B',b'A',b'C',b'K',b'\n'
-        ]
-        type(self.mock_serial_instance).in_waiting = unittest.mock.PropertyMock(side_effect=[1,1,1,1,1, 0, 1,1,1,1,1, 0])
 
+        # Simulate read sequence: successful read, then error, then successful read after reconnect
+        self.mock_serial_instance.read.side_effect = (
+            # Bytes for "LIVE\n"
+            [b'L', b'I', b'V', b'E', b'\n'] +
+            # Error when device is "gone"
+            [serial.SerialException("Simulated device disappearance during read")] +
+            # Bytes for "BACK\n" after reconnect
+            [b'B', b'A', b'C', b'K', b'\n']
+        )
+
+        # Align in_waiting:
+        # 5 ones for "LIVE\n"
+        # 1 one for the read attempt that will raise SerialException
+        # 5 ones for "BACK\n" after successful reconnect
+        # Then zeros
+        in_waiting_sequence = [1]*5 + [1] + [1]*5 + [0]*5 # Ensure enough zeros at the end
+        type(self.mock_serial_instance).in_waiting = unittest.mock.PropertyMock(
+            side_effect=lambda: in_waiting_sequence.pop(0) if in_waiting_sequence else 0
+        )
 
         self.handler.start()
         time.sleep(0.5) # Allow time for connect, disconnect, reconnect cycle

@@ -24,11 +24,16 @@ class TestScaleMqttHandler(unittest.TestCase):
         self.serial_to_mqtt_queue = queue.Queue() # Data from serial to publish
         self.mqtt_to_serial_queue = queue.Queue() # Commands to serial
 
-        self.patcher_mqtt_client = patch('paho.mqtt.client.Client')
-        self.mock_mqtt_client_class = self.patcher_mqtt_client.start()
+        # Get the original class before it's patched
+        original_client_class = paho_mqtt.Client
 
-        self.mock_client_instance = MagicMock(spec=paho_mqtt.Client)
+        self.patcher_mqtt_client = patch('paho.mqtt.client.Client')
+        self.mock_mqtt_client_class = self.patcher_mqtt_client.start() # This is the mock for the CLASS
+
+        # Create an instance mock, specced against the original class
+        self.mock_client_instance = MagicMock(spec=original_client_class)
         self.mock_client_instance.is_connected.return_value = False # Start as not connected
+        # Make the class mock return our instance mock
         self.mock_mqtt_client_class.return_value = self.mock_client_instance
 
         self.handler = ScaleMqttHandler(
@@ -112,12 +117,16 @@ class TestScaleMqttHandler(unittest.TestCase):
 
     @patch('time.sleep', MagicMock())
     def test_run_connects_and_subscribes(self):
-        self.mock_client_instance.is_connected.side_effect = [False, True, True, True] # Initial, then connected
+        # is_connected will be called once before connect, should return False.
+        # After connect, mock_connect will set return_value to True.
+        self.mock_client_instance.is_connected.side_effect = [False]
 
         # Simulate successful connection via callback
         def mock_connect(*args, **kwargs):
             self.handler._on_connect(self.mock_client_instance, None, None, 0) # rc=0
             self.mock_client_instance.is_connected.return_value = True # Update connected state
+            # Clear side_effect so that return_value is used for subsequent calls
+            self.mock_client_instance.is_connected.side_effect = None
         self.mock_client_instance.connect.side_effect = mock_connect
 
         self.handler.start()

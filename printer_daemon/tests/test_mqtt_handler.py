@@ -22,11 +22,16 @@ class TestPrinterMqttHandler(unittest.TestCase):
     def setUp(self):
         self.mqtt_to_serial_queue = queue.Queue() # Messages to serial handler for printing
 
-        self.patcher_mqtt_client = patch('paho.mqtt.client.Client')
-        self.mock_mqtt_client_class = self.patcher_mqtt_client.start()
+        # Get the original class before it's patched
+        original_client_class = paho_mqtt.Client
 
-        self.mock_client_instance = MagicMock(spec=paho_mqtt.Client)
+        self.patcher_mqtt_client = patch('paho.mqtt.client.Client')
+        self.mock_mqtt_client_class = self.patcher_mqtt_client.start() # This is the mock for the CLASS
+
+        # Create an instance mock, specced against the original class
+        self.mock_client_instance = MagicMock(spec=original_client_class)
         self.mock_client_instance.is_connected.return_value = False
+        # Make the class mock return our instance mock
         self.mock_mqtt_client_class.return_value = self.mock_client_instance
 
         self.handler = PrinterMqttHandler(
@@ -94,11 +99,14 @@ class TestPrinterMqttHandler(unittest.TestCase):
 
     @patch('time.sleep', MagicMock())
     def test_run_connects_and_subscribes_main_loop(self):
-        self.mock_client_instance.is_connected.side_effect = [False, True, True]
+        # is_connected will be called once before connect, should return False.
+        self.mock_client_instance.is_connected.side_effect = [False]
 
         def mock_connect(*args, **kwargs):
             self.handler._on_connect(self.mock_client_instance, None, None, 0)
             self.mock_client_instance.is_connected.return_value = True
+            # Clear side_effect so that return_value is used for subsequent calls
+            self.mock_client_instance.is_connected.side_effect = None
         self.mock_client_instance.connect.side_effect = mock_connect
 
         self.handler.start()

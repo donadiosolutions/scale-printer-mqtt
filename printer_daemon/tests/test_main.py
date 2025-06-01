@@ -45,16 +45,20 @@ class TestPrinterMain(unittest.TestCase):
         )
         mock_serial_instance.start.assert_called_once()
 
+        # Determine the expected use_tls value based on the default string
+        expected_use_tls = printer_main.MQTT_USE_TLS_DEFAULT
+
         MockMqttHandler.assert_called_once_with(
-            printer_main.MQTT_BROKER_HOST,
-            printer_main.MQTT_BROKER_PORT,
-            printer_main.MQTT_USERNAME,
-            printer_main.MQTT_PASSWORD,
-            printer_main.MQTT_CLIENT_ID,
-            printer_main.MQTT_PRINT_TOPIC,
-            printer_main.MQTT_QOS,
-            printer_main.MQTT_KEEPALIVE,
-            printer_main.mqtt_to_serial_queue
+            printer_main.MQTT_BROKER_HOST_DEFAULT,
+            printer_main.MQTT_BROKER_PORT_DEFAULT,
+            printer_main.MQTT_USERNAME_DEFAULT,
+            printer_main.MQTT_PASSWORD_DEFAULT,
+            printer_main.MQTT_CLIENT_ID_DEFAULT,
+            printer_main.MQTT_PRINT_TOPIC_DEFAULT,
+            printer_main.MQTT_QOS_DEFAULT,
+            printer_main.MQTT_KEEPALIVE_DEFAULT,
+            printer_main.mqtt_to_serial_queue,
+            use_tls=expected_use_tls
         )
         mock_mqtt_instance.start.assert_called_once()
 
