@@ -151,40 +151,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create mosquitto password file
-        run: |
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends mosquitto mosquitto-clients
-          MOSQUITTO_PASSWD_PATH=""
-          DPKG_OUTPUT=$(dpkg -L mosquitto-clients 2>/dev/null || true)
-          if [ -n "$DPKG_OUTPUT" ]; then
-            MOSQUITTO_PASSWD_PATH=$(echo "$DPKG_OUTPUT" | grep -E '(/usr)?/s?bin/mosquitto_passwd$' | head -n 1)
-          fi
-          if [ -z "$MOSQUITTO_PASSWD_PATH" ]; then
-            MOSQUITTO_PASSWD_PATH=$(which mosquitto_passwd 2>/dev/null || true)
-          fi
-          if [ -z "$MOSQUITTO_PASSWD_PATH" ]; then
-            if [ -x "/usr/bin/mosquitto_passwd" ]; then
-                MOSQUITTO_PASSWD_PATH="/usr/bin/mosquitto_passwd"
-            elif [ -x "/usr/sbin/mosquitto_passwd" ]; then
-                MOSQUITTO_PASSWD_PATH="/usr/sbin/mosquitto_passwd"
-            fi
-          fi
-          if [ -z "$MOSQUITTO_PASSWD_PATH" ]; then
-            echo "Error: mosquitto_passwd command not found after installation and path checks."
-            echo "dpkg -L output was:"
-            echo "$DPKG_OUTPUT"
-            exit 1
-          fi
-          echo "Using mosquitto_passwd at: $MOSQUITTO_PASSWD_PATH"
-          mkdir -p mosquitto/config
-          sudo rm -f mosquitto/config/mosquitto_passwd
-          sudo $MOSQUITTO_PASSWD_PATH -c mosquitto/config/mosquitto_passwd scale_user scale_password
-          sudo $MOSQUITTO_PASSWD_PATH mosquitto/config/mosquitto_passwd printer_user printer_password
-          echo "Setting permissions for mosquitto_passwd file..."
-          sudo chown root:root mosquitto/config/mosquitto_passwd
-          sudo chmod 0600 mosquitto/config/mosquitto_passwd
-          echo "Permissions set."
-
       - name: Prepare .env file for Docker Compose
         run: |
           echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" > .env

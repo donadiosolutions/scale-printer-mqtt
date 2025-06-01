@@ -1,2 +1,2 @@
-scale_user:scale_password
-printer_user:printer_password
+scale_user:$7$101$15PrUNxJg8Oun7Ao$LT9Q8T3I4FnKW7LnBwJxGvDv4P9dWaMPFfr6qZYSZmJz8jdvqzSZIjaD8iQBFPHUP5bB2huWPu20GR9XFwlyQw==
+printer_user:$7$101$TS4ymDsbEh2WtA3i$gNiZ6OOa2VW1PaycMiDEqtcEI26WVQZl51wNhIzhaCJ48xHqKPyOC5EJU2OIGz6I3uHIOSaTcamhC/Jg1fJa4g==

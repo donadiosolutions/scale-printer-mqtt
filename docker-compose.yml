@@ -2,31 +2,19 @@ version: '3.8'
 
 services:
   mosquitto:
-    image: eclipse-mosquitto:2.0 # Use a specific version, 2.0.x supports password_file format option
+    image: eclipse-mosquitto:2.0.18 # Using a specific stable version
     container_name: mosquitto_broker
     ports:
-      # Map container port 1883 to a random available port on the host.
-      # This avoids "address already in use" errors in CI.
-      # Daemons will connect to "mosquitto:1883" on the internal Docker network.
-      - "1883"
-      # - "8883:8883" # If testing TLS, but current daemons use TLS to external broker
-                      # For local test, non-TLS is simpler unless TLS itself is tested here.
-                      # The python code is set up for TLS (port 8883).
-                      # If we want to test against this local broker, we'd need to:
-                      # 1. Configure mosquitto for TLS (certs, key)
-                      # 2. Change daemon constants to point to localhost:8883 (or make configurable)
-                      # For simplicity of integration test setup, often non-TLS is used locally.
-                      # Let's assume for this docker-compose, the daemons will be configured
-                      # to connect to this local, non-TLS broker for the integration test run.
-                      # This means the python constants MQTT_BROKER_HOST/PORT would need to be
-                      # overridden or the code adapted for testing.
-                      # Given the prompt specifies TLS for the *actual* broker, this local
-                      # test broker might intentionally be simpler.
+      - "1883:1883" # Non-TLS
+      - "8883:8883" # TLS
     volumes:
-      - ./mosquitto/config:/mosquitto/config
-      # - ./mosquitto/data:/mosquitto/data # For persistence if enabled
-      # - ./mosquitto/log:/mosquitto/log # For logs if not stdout
-    # command: "mosquitto -c /mosquitto/config/mosquitto.conf" # Implicitly uses this if present
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/config/mosquitto_passwd:/mosquitto/config/mosquitto_passwd:ro
+      - ./mosquitto/certs:/mosquitto/certs:ro
+    # The mosquitto_passwd file contains hashed credentials.
+    # Default users/passwords (before hashing):
+    # - scale_user:scale_password
+    # - printer_user:printer_password
     networks:
       - app_net
 
