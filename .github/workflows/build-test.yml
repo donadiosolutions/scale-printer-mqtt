@@ -136,6 +136,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build_images, unit_test_images]
     timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Install Docker's Compose
         run: |
