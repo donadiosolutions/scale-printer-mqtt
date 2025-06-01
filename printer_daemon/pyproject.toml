@@ -15,7 +15,7 @@ pyserial = "^3.5"
 pytest = "^7.0"
 pytest-cov = "^4.0"
 black = "^23.0"
-flake8 = "^6.0"
+flake8 = "^7.2"
 
 [build-system]
 requires = ["poetry-core"]
