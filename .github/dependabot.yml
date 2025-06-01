@@ -8,8 +8,6 @@ updates:
     schedule:
       interval: "daily"
     target-branch: "master"
-    reviewers:
-      - bcdonadio
     assignees:
       - bcdonadio
     open-pull-requests-limit: 10
@@ -19,8 +17,6 @@ updates:
     schedule:
       interval: "daily"
     target-branch: "master"
-    reviewers:
-      - bcdonadio
     assignees:
       - bcdonadio
     open-pull-requests-limit: 10
@@ -30,8 +26,6 @@ updates:
     schedule:
       interval: "daily"
     target-branch: "master"
-    reviewers:
-      - bcdonadio
     assignees:
       - bcdonadio
     open-pull-requests-limit: 5 # Usually fewer actions to update
