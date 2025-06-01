@@ -15,13 +15,16 @@ env:
 
 jobs:
   determine_platforms:
+    name: Determine target platforms
     runs-on: ubuntu-latest
     outputs:
       platforms: ${{ steps.build_platforms.outputs.platforms }}
       platforms_for_display: ${{ steps.build_platforms.outputs.platforms_for_display }}
     steps:
-      - name: Determine Build Platforms
+      - name: Process platform list and overrides
         id: build_platforms
+        env:
+          PLATFORMS_OVERRIDE: ${{ env.PLATFORMS_OVERRIDE || '' }}
         run: |
           if [ -n "${{ env.PLATFORMS_OVERRIDE }}" ]; then
             echo "Using overridden platforms: ${{ env.PLATFORMS_OVERRIDE }}"
@@ -35,6 +38,7 @@ jobs:
           fi
 
   build_images:
+    name: Build container images
     runs-on: ubuntu-latest
     needs: determine_platforms
     permissions:
@@ -53,7 +57,7 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      - name: Set up Docker Buildx
+      - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
         with:
           platforms: ${{ needs.determine_platforms.outputs.platforms }}
@@ -65,7 +69,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Cache Image - ${{ matrix.daemon.name }}
+      - name: Build and cache candidate image - ${{ matrix.daemon.name }}
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.daemon.path }}
@@ -77,7 +81,7 @@ jobs:
           cache-to: type=gha,mode=max
           target: final
 
-      - name: Build and Cache Tester Image - ${{ matrix.daemon.name }}
+      - name: Build and cache tester image - ${{ matrix.daemon.name }}
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.daemon.path }}
@@ -90,6 +94,7 @@ jobs:
           target: tester
 
   unit_test_images:
+    name: Run unit tests
     runs-on: ubuntu-latest
     needs: [determine_platforms, build_images]
     strategy:
@@ -106,7 +111,7 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      - name: Set up Docker Buildx
+      - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
         with:
           platforms: ${{ needs.determine_platforms.outputs.platforms }}
@@ -118,20 +123,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull Tester Image - ${{ matrix.daemon.name }}
+      - name: Pull tester image - ${{ matrix.daemon.name }}
         run: |
           docker pull ghcr.io/${{ github.repository }}/${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}
 
-      - name: Run Unit Tests - ${{ matrix.daemon.name }}
+      - name: Run unit tests - ${{ matrix.daemon.name }}
         run: |
           docker run --rm ghcr.io/${{ github.repository }}/${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}
 
   integration_test:
+    name: Run integration test with Compose
     runs-on: ubuntu-latest
     needs: [build_images, unit_test_images]
     timeout-minutes: 5
     steps:
-      - name: Install Docker Compose
+      - name: Install Docker's Compose
         run: |
             curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
               | sudo gpg --dearmor \
@@ -152,21 +158,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prepare .env file for Docker Compose
+      - name: Prepare .env file for Compose
         run: |
           echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" > .env
           echo "SCALE_DAEMON_IMAGE_NAME=ghcr.io/${{ github.repository }}/scale-daemon" >> .env
           echo "PRINTER_DAEMON_IMAGE_NAME=ghcr.io/${{ github.repository }}/printer-daemon" >> .env
           echo "MOCK_SERIAL_DEVICES=true" >> .env
           echo "RUN_INTEGRATION_TEST=true" >> .env
-          echo "Generated .env file for Docker Compose:"
+          echo "Generated .env file for Compose:"
           cat .env
 
-      - name: Run Integration Tests with Docker Compose
+      - name: Run integration test with Compose
         run: |
           docker compose -f docker-compose.yml up --abort-on-container-exit --exit-code-from scale-daemon --timeout 45
 
-      - name: Docker Compose Down (if tests passed or on failure)
+      - name: Compose tear down
         if: always()
         run: |
           docker compose -f docker-compose.yml down

@@ -3,54 +3,35 @@
 
 version: 2
 updates:
-  # Maintain dependencies for Python (Poetry) for scale_daemon
-  - package-ecosystem: "pip" # For Poetry, use "pip" and specify the manifest directory
+  - package-ecosystem: "pip"
     directory: "/scale_daemon" # Location of pyproject.toml and poetry.lock
     schedule:
       interval: "daily"
-    target-branch: "main" # Or your default branch
+    target-branch: "master"
     reviewers:
-      # - "your-github-username" # Optional: assign reviewers
-      []
+      - bcdonadio
     assignees:
-      # - "your-github-username" # Optional: assign assignees
-      []
-    # Automatically open pull requests for security vulnerabilities
-    # For version updates, this is the default behavior if not specified.
-    # For security updates, this ensures PRs are opened.
-    open-pull-requests-limit: 10 # Limit the number of open PRs
-    # For security updates (vulnerabilities), Dependabot automatically opens PRs.
-    # The following is more for version updates, but good to be aware of.
-    # For version updates, to automatically create PRs for all updates:
-    # (Not strictly needed for the "vulnerability disclosed and patch available" requirement,
-    # as that's the primary function of Dependabot security updates)
-    # pull-request-branch-name:
-    #   separator: "-"
-
-  # Maintain dependencies for Python (Poetry) for printer_daemon
-  - package-ecosystem: "pip"
-    directory: "/printer_daemon"
-    schedule:
-      interval: "daily"
-    target-branch: "main" # Or your default branch
-    reviewers: []
-    assignees: []
+      - bcdonadio
     open-pull-requests-limit: 10
 
-  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "pip"
+    directory: "/printer_daemon" # Location of pyproject.toml and poetry.lock
+    schedule:
+      interval: "daily"
+    target-branch: "master"
+    reviewers:
+      - bcdonadio
+    assignees:
+      - bcdonadio
+    open-pull-requests-limit: 10
+
   - package-ecosystem: "github-actions"
     directory: "/" # Location of your workflow files
     schedule:
       interval: "daily"
-    target-branch: "main" # Or your default branch
-    reviewers: []
-    assignees: []
+    target-branch: "master"
+    reviewers:
+      - bcdonadio
+    assignees:
+      - bcdonadio
     open-pull-requests-limit: 5 # Usually fewer actions to update
-
-# Note on "automatically open PRs whenever there's a vulnerability disclosed and an available patch":
-# This is the core functionality of Dependabot security updates, which are enabled at the repository level
-# (Settings > Code security and analysis > Dependabot security updates).
-# The dependabot.yml file primarily configures Dependabot version updates.
-# However, having version updates configured also helps stay on patched versions proactively.
-# Dependabot security updates will create PRs for vulnerable dependencies even without a specific
-# "security_updates_only" flag in this file, as long as the ecosystem is monitored.
