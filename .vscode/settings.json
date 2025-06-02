@@ -1,6 +1,0 @@
-{
-    "github-actions.workflows.pinned.workflows": [
-        ".github/workflows/build-test.yml",
-        ".github/workflows/publish.yml"
-    ]
-}
