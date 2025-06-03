@@ -5,6 +5,7 @@ services:
     ports:
       - "1883:1883" # Non-TLS
       - "8883:8883" # TLS
+    user: 1883:1883 # Run as mosquitto user
     volumes:
       - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/config/mosquitto_passwd:/mosquitto/config/mosquitto_passwd:ro
