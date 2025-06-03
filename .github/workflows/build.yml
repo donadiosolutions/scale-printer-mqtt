@@ -1,0 +1,105 @@
+name: Build Images
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  merge_group:
+    types: [checks_requested]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_TAG: ci-${{ github.sha }}
+
+jobs:
+  determine_platforms:
+    name: Determine target platforms
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      platforms: ${{ steps.build_platforms.outputs.platforms }}
+      platforms_for_display: ${{ steps.build_platforms.outputs.platforms_for_display }}
+    steps:
+      - name: Process platform list and overrides
+        id: build_platforms
+        env:
+          PLATFORMS_OVERRIDE: ${{ env.PLATFORMS_OVERRIDE || '' }}
+        run: |
+          if [ -n "${{ env.PLATFORMS_OVERRIDE }}" ]; then
+            echo "Using overridden platforms: ${{ env.PLATFORMS_OVERRIDE }}"
+            echo "platforms=${{ env.PLATFORMS_OVERRIDE }}" >> $GITHUB_OUTPUT
+            echo "platforms_for_display=$(echo ${{ env.PLATFORMS_OVERRIDE }} | tr ',' ' ')" >> $GITHUB_OUTPUT
+          else
+            DEFAULT_PLATFORMS="linux/amd64,linux/arm64"
+            echo "Using default platforms: $DEFAULT_PLATFORMS"
+            echo "platforms=$DEFAULT_PLATFORMS" >> $GITHUB_OUTPUT
+            echo "platforms_for_display=$(echo $DEFAULT_PLATFORMS | tr ',' ' ')" >> $GITHUB_OUTPUT
+          fi
+
+  build_images:
+    name: Build container images
+    runs-on: ubuntu-latest
+    needs: determine_platforms
+    outputs: # Add outputs section
+      image_tag_generated: ${{ env.IMAGE_TAG }}
+    permissions:
+      contents: read # No package:write permission needed
+    strategy:
+      matrix:
+        daemon:
+          - name: scale-daemon
+            path: ./scale_daemon
+          - name: printer-daemon
+            path: ./printer_daemon
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ needs.determine_platforms.outputs.platforms }}
+
+      # Log in to GitHub Container Registry step removed - not pushing
+
+      - name: Build and cache candidate image - ${{ matrix.daemon.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.daemon.path }}
+          file: ${{ matrix.daemon.path }}/Containerfile
+          platforms: ${{ needs.determine_platforms.outputs.platforms }}
+          push: false # Do not push to registry
+          tags: ${{ matrix.daemon.name }}:${{ env.IMAGE_TAG }} # Local tag
+          cache-from: type=gha
+          cache-to: type=gha,mode=max,image-manifest=true,oci-mediatypes=true
+          target: final
+
+      - name: Build and cache tester image - ${{ matrix.daemon.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.daemon.path }}
+          file: ${{ matrix.daemon.path }}/Containerfile
+          platforms: ${{ needs.determine_platforms.outputs.platforms }}
+          push: false # Do not push to registry
+          tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }} # Local tag
+          cache-from: type=gha
+          cache-to: type=gha,mode=max,image-manifest=true,oci-mediatypes=true
+          target: tester
+
+  call_unit_test_workflow: # Renamed for clarity, this job IS the call
+    name: Call Unit Test Workflow
+    uses: ./.github/workflows/unit-test.yml # Reusable workflow called at job level
+    needs: [determine_platforms, build_images]
+    permissions:
+      contents: read # Permissions for the token passed to the called workflow
+    with:
+      image_tag: ${{ needs.build_images.outputs.image_tag_generated }} # Use output from build_images job
+      platforms: ${{ needs.determine_platforms.outputs.platforms }}
+    # secrets: inherit # If secrets need to be passed
