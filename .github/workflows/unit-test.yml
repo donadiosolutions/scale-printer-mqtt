@@ -44,6 +44,10 @@ jobs:
         with:
           platforms: ${{ matrix.platform }}
 
+      - name: Sanitize platform for tag
+        id: sanitize_platform
+        run: echo "platform_sanitized=$(echo ${{ matrix.platform }} | tr '/' '-')" >> $GITHUB_OUTPUT
+
       # Log in to GitHub Container Registry step removed
 
       - name: Load tester image from cache - ${{ matrix.daemon.name }}
@@ -53,14 +57,14 @@ jobs:
           file: ${{ matrix.daemon.path }}/Containerfile
           platforms: ${{ matrix.platform }}
           target: tester
-          tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ matrix.platform }}
+          tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
           load: true # Load image into local Docker daemon from cache
           push: false # Do not push
           cache-from: type=gha # Source from GHA cache
 
       - name: Run unit tests - ${{ matrix.daemon.name }}
         run: |
-          docker run --rm ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ matrix.platform }}
+          docker run --rm ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
 
   call_integration_test_workflow: # Renamed for clarity, this job IS the call
     name: Call Integration Test Workflow

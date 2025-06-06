@@ -49,15 +49,15 @@ jobs:
           PLATFORMS_OVERRIDE: ${{ env.PLATFORMS_OVERRIDE || '' }}
         run: |
           if [ -n "${{ env.PLATFORMS_OVERRIDE }}" ]; then
-            echo "Using overridden platforms: ${{ env.PLATFORMS_OVERRIDE }}"
-            echo "platforms=${{ env.PLATFORMS_OVERRIDE }}" >> $GITHUB_OUTPUT
-            echo "platforms_for_display=$(echo ${{ env.PLATFORMS_OVERRIDE }} | tr ',' ' ')" >> $GITHUB_OUTPUT
+            PLATFORMS_CSV="${{ env.PLATFORMS_OVERRIDE }}"
+            echo "Using overridden platforms: $PLATFORMS_CSV"
           else
-            DEFAULT_PLATFORMS="linux/amd64,linux/arm64"
-            echo "Using default platforms: $DEFAULT_PLATFORMS"
-            echo "platforms=$DEFAULT_PLATFORMS" >> $GITHUB_OUTPUT
-            echo "platforms_for_display=$(echo $DEFAULT_PLATFORMS | tr ',' ' ')" >> $GITHUB_OUTPUT
+            PLATFORMS_CSV="linux/amd64,linux/arm64"
+            echo "Using default platforms: $PLATFORMS_CSV"
           fi
+          JSON_ARRAY="[\"$(echo $PLATFORMS_CSV | sed 's/,/\",\"/g')\"]"
+          echo "platforms=$JSON_ARRAY" >> $GITHUB_OUTPUT
+          echo "platforms_for_display=$(echo $PLATFORMS_CSV | tr ',' ' ')" >> $GITHUB_OUTPUT
 
   build_images:
     name: Build container images
@@ -89,6 +89,10 @@ jobs:
         with:
           platforms: ${{ matrix.platform }}
 
+      - name: Sanitize platform for tag
+        id: sanitize_platform
+        run: echo "platform_sanitized=$(echo ${{ matrix.platform }} | tr '/' '-')" >> $GITHUB_OUTPUT
+
       - name: Build and cache candidate image - ${{ matrix.daemon.name }}
         uses: docker/build-push-action@v6
         with:
@@ -96,7 +100,7 @@ jobs:
           file: ${{ matrix.daemon.path }}/Containerfile
           platforms: ${{ matrix.platform }}
           push: false
-          tags: ${{ matrix.daemon.name }}:${{ env.IMAGE_TAG }}-${{ matrix.platform }}
+          tags: ${{ matrix.daemon.name }}:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
           cache-from: type=gha
           cache-to: type=gha,mode=max,image-manifest=true,oci-mediatypes=true
           target: final
@@ -109,7 +113,7 @@ jobs:
           file: ${{ matrix.daemon.path }}/Containerfile
           platforms: ${{ matrix.platform }}
           push: false
-          tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ matrix.platform }}
+          tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
           cache-from: type=gha
           cache-to: type=gha,mode=max,image-manifest=true,oci-mediatypes=true
           target: tester

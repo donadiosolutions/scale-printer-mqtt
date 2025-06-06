@@ -40,6 +40,10 @@ jobs:
         with:
           platforms: ${{ matrix.platform }}
 
+      - name: Sanitize platform for tag
+        id: sanitize_platform
+        run: echo "platform_sanitized=$(echo ${{ matrix.platform }} | tr '/' '-')" >> $GITHUB_OUTPUT
+
       # Log in to GitHub Container Registry step removed
 
       - name: Load scale-daemon image from cache
@@ -49,7 +53,7 @@ jobs:
           file: ./scale_daemon/Containerfile
           platforms: ${{ matrix.platform }}
           target: final
-          tags: scale-daemon:${{ env.IMAGE_TAG }}-${{ matrix.platform }}
+          tags: scale-daemon:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
           load: true # Load image into local Docker daemon from cache
           push: false # Do not push
           cache-from: type=gha # Source from GHA cache
@@ -61,7 +65,7 @@ jobs:
           file: ./printer_daemon/Containerfile
           platforms: ${{ matrix.platform }}
           target: final
-          tags: printer-daemon:${{ env.IMAGE_TAG }}-${{ matrix.platform }}
+          tags: printer-daemon:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
           load: true # Load image into local Docker daemon from cache
           push: false # Do not push
           cache-from: type=gha # Source from GHA cache
@@ -79,7 +83,7 @@ jobs:
 
       - name: Prepare .env file for Compose
         run: |
-          echo "IMAGE_TAG=${{ env.IMAGE_TAG }}-${{ matrix.platform }}" > .env
+          echo "IMAGE_TAG=${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}" > .env
           echo "SCALE_DAEMON_IMAGE_NAME=scale-daemon" >> .env
           echo "PRINTER_DAEMON_IMAGE_NAME=printer-daemon" >> .env
           echo "MOCK_SERIAL_DEVICES=${{ vars.MOCK_SERIAL_DEVICES || 'true' }}" >> .env # Use repo var or default

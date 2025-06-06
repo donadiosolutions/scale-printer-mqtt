@@ -45,6 +45,10 @@ jobs:
         with:
           platforms: ${{ matrix.platform }} # Use input
 
+      - name: Sanitize platform for tag
+        id: sanitize_platform
+        run: echo "platform_sanitized=$(echo ${{ matrix.platform }} | tr '/' '-')" >> $GITHUB_OUTPUT
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -58,11 +62,11 @@ jobs:
         with:
           images: ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}
           tags: |
-            type=raw,value=${{ inputs.image_tag }}-${{ matrix.platform }}
-            type=raw,value=latest-${{ matrix.platform }},enable=${{ github.repository == 'donadiosolutions/scale-printer-mqtt' && inputs.image_tag == github.event.release.tag_name && github.event.release.prerelease == false }}
-            type=semver,pattern={{version}}-${{ matrix.platform }},value=${{ inputs.image_tag }}
-            type=semver,pattern={{major}}.{{minor}}-${{ matrix.platform }},value=${{ inputs.image_tag }}
-            type=semver,pattern={{major}}-${{ matrix.platform }},value=${{ inputs.image_tag }}
+            type=raw,value=${{ inputs.image_tag }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
+            type=raw,value=latest-${{ steps.sanitize_platform.outputs.platform_sanitized }},enable=${{ github.repository == 'donadiosolutions/scale-printer-mqtt' && inputs.image_tag == github.event.release.tag_name && github.event.release.prerelease == false }}
+            type=semver,pattern={{version}}-${{ steps.sanitize_platform.outputs.platform_sanitized }},value=${{ inputs.image_tag }}
+            type=semver,pattern={{major}}.{{minor}}-${{ steps.sanitize_platform.outputs.platform_sanitized }},value=${{ inputs.image_tag }}
+            type=semver,pattern={{major}}-${{ steps.sanitize_platform.outputs.platform_sanitized }},value=${{ inputs.image_tag }}
             # SHA tag might not be relevant here if inputs.image_tag is the release tag
             # type=sha,enable=${{ github.event_name != 'release' }} # Condition might need to be smarter if this workflow is ever called not from a release context by build.yml
 
@@ -104,14 +108,14 @@ jobs:
       - name: Create and push manifest for ${{ matrix.daemon.image_name }}
         run: |
           docker manifest create ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:${{ inputs.image_tag }} \
-            --amend ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:${{ inputs.image_tag }}-linux/amd64 \
-            --amend ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:${{ inputs.image_tag }}-linux/arm64
+            --amend ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:${{ inputs.image_tag }}-linux-amd64 \
+            --amend ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:${{ inputs.image_tag }}-linux-arm64
           docker manifest push ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:${{ inputs.image_tag }}
 
       - name: Create and push 'latest' manifest for ${{ matrix.daemon.image_name }}
         if: github.repository == 'donadiosolutions/scale-printer-mqtt' && inputs.image_tag == github.event.release.tag_name && github.event.release.prerelease == false
         run: |
           docker manifest create ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:latest \
-            --amend ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:${{ inputs.image_tag }}-linux/amd64 \
-            --amend ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:${{ inputs.image_tag }}-linux/arm64
+            --amend ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:${{ inputs.image_tag }}-linux-amd64 \
+            --amend ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:${{ inputs.image_tag }}-linux-arm64
           docker manifest push ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}:latest
