@@ -21,10 +21,13 @@ env:
 jobs:
   integration_test:
     name: Run integration test with Compose
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-latest' || 'ubuntu-latest-arm64' }}
     timeout-minutes: 5
     permissions:
       contents: read # No package:read permission needed
+    strategy:
+      matrix:
+        platform: ${{ fromJson(inputs.platforms) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,7 +38,7 @@ jobs:
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
         with:
-          platforms: ${{ inputs.platforms }}
+          platforms: ${{ matrix.platform }}
 
       # Log in to GitHub Container Registry step removed
 
@@ -44,9 +47,9 @@ jobs:
         with:
           context: ./scale_daemon # Context needed for cache key resolution
           file: ./scale_daemon/Containerfile
-          platforms: linux/amd64
+          platforms: ${{ matrix.platform }}
           target: final
-          tags: scale-daemon:${{ env.IMAGE_TAG }}
+          tags: scale-daemon:${{ env.IMAGE_TAG }}-${{ matrix.platform }}
           load: true # Load image into local Docker daemon from cache
           push: false # Do not push
           cache-from: type=gha # Source from GHA cache
@@ -56,9 +59,9 @@ jobs:
         with:
           context: ./printer_daemon # Context needed for cache key resolution
           file: ./printer_daemon/Containerfile
-          platforms: linux/amd64
+          platforms: ${{ matrix.platform }}
           target: final
-          tags: printer-daemon:${{ env.IMAGE_TAG }}
+          tags: printer-daemon:${{ env.IMAGE_TAG }}-${{ matrix.platform }}
           load: true # Load image into local Docker daemon from cache
           push: false # Do not push
           cache-from: type=gha # Source from GHA cache
@@ -76,7 +79,7 @@ jobs:
 
       - name: Prepare .env file for Compose
         run: |
-          echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" > .env
+          echo "IMAGE_TAG=${{ env.IMAGE_TAG }}-${{ matrix.platform }}" > .env
           echo "SCALE_DAEMON_IMAGE_NAME=scale-daemon" >> .env
           echo "PRINTER_DAEMON_IMAGE_NAME=printer-daemon" >> .env
           echo "MOCK_SERIAL_DEVICES=${{ vars.MOCK_SERIAL_DEVICES || 'true' }}" >> .env # Use repo var or default
