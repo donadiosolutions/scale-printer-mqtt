@@ -26,7 +26,7 @@ jobs:
       contents: read # No package:read permission needed
     strategy:
       matrix:
-        platform: ${{ fromJson(inputs.platforms) }}
+        platform: ${{ fromJson(format('["{0}"]', inputs.platforms)) }}
         daemon:
           - name: scale-daemon
             path: ./scale_daemon
