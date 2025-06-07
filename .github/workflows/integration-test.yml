@@ -21,7 +21,7 @@ env:
 jobs:
   integration_test:
     name: Run integration test with Compose
-    runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-latest' || 'ubuntu-latest-arm64' }}
+    runs-on: ${{ (matrix.platform == 'linux/arm64' && 'ubuntu-latest-arm64') || 'ubuntu-latest' }}
     timeout-minutes: 5
     permissions:
       contents: read # No package:read permission needed
@@ -51,7 +51,6 @@ jobs:
         with:
           context: ./scale_daemon # Context needed for cache key resolution
           file: ./scale_daemon/Containerfile
-          platforms: ${{ matrix.platform }}
           target: final
           tags: scale-daemon:ci
           load: true # Load image into local Docker daemon from cache
@@ -63,7 +62,6 @@ jobs:
         with:
           context: ./printer_daemon # Context needed for cache key resolution
           file: ./printer_daemon/Containerfile
-          platforms: ${{ matrix.platform }}
           target: final
           tags: printer-daemon:ci
           load: true # Load image into local Docker daemon from cache
