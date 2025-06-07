@@ -85,7 +85,9 @@ jobs:
             PLATFORMS_CSV="linux/amd64"
             echo "Using default platforms for other events: $PLATFORMS_CSV"
           fi
-          echo "platforms=$PLATFORMS_CSV" >> $GITHUB_OUTPUT
+          # Convert comma-separated string to a JSON array string for the matrix
+          JSON_ARRAY=$(echo "$PLATFORMS_CSV" | sed 's#,#","#g' | sed 's#^#["#g' | sed 's#$#"]#g')
+          echo "platforms=$JSON_ARRAY" >> $GITHUB_OUTPUT
 
   build_images:
     name: Build container images
@@ -99,7 +101,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        platform: ${{ fromJson(format('["{0}"]', needs.determine_platforms.outputs.platforms)) }}
+        platform: ${{ fromJson(needs.determine_platforms.outputs.platforms) }}
         daemon:
           - name: scale-daemon
             path: ./scale_daemon

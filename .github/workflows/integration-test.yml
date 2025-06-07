@@ -27,7 +27,7 @@ jobs:
       contents: read # No package:read permission needed
     strategy:
       matrix:
-        platform: ${{ fromJson(format('["{0}"]', inputs.platforms)) }}
+        platform: ${{ fromJson(inputs.platforms) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
