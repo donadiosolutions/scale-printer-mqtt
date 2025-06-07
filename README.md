@@ -165,4 +165,3 @@ Please refer to `CONTRIBUTING.md` (to be created if contributions are expected).
 ## License
 
 This project is licensed under the GNU General Public License v2.0 - see the `LICENSE` file for details.
-
