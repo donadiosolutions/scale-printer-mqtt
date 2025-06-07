@@ -5,6 +5,7 @@ services:
     ports:
       - "1883:1883" # Non-TLS
       - "8883:8883" # TLS
+    user: 1883:1883 # Run as mosquitto user
     volumes:
       - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/config/mosquitto_passwd:/mosquitto/config/mosquitto_passwd:ro
@@ -17,7 +18,7 @@ services:
       - app_net
 
   scale-daemon:
-    image: ${SCALE_DAEMON_IMAGE_NAME}:${IMAGE_TAG}
+    image: scale-daemon:ci
     container_name: scale_daemon_app
     depends_on:
       - mosquitto
@@ -48,7 +49,7 @@ services:
       - app_net
 
   printer-daemon:
-    image: ${PRINTER_DAEMON_IMAGE_NAME}:${IMAGE_TAG}
+    image: printer-daemon:ci
     container_name: printer_daemon_app
     depends_on:
       - mosquitto

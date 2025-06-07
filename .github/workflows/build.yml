@@ -1,0 +1,171 @@
+name: Build Images
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  merge_group:
+    types: [checks_requested]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      build_amd64:
+        description: 'Build for amd64'
+        required: true
+        type: boolean
+        default: true
+      build_arm64:
+        description: 'Build for arm64'
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# env: # IMAGE_TAG will be set in prepare_build_vars job
+
+jobs:
+  prepare_build_vars:
+    name: Prepare Build Variables
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      image_tag: ${{ steps.vars.outputs.image_tag }}
+    steps:
+      - name: Set Image Tag
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            echo "image_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "image_tag=ci-${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+  determine_platforms:
+    name: Determine target platforms
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      platforms: ${{ steps.build_platforms.outputs.platforms }}
+    steps:
+      - name: Process platform list and overrides
+        id: build_platforms
+        env:
+          PLATFORMS_OVERRIDE: ${{ env.PLATFORMS_OVERRIDE || '' }}
+        run: |
+          PLATFORMS_CSV=""
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            if [ "${{ github.event.inputs.build_amd64 }}" == "true" ]; then
+              PLATFORMS_CSV="linux/amd64"
+            fi
+            if [ "${{ github.event.inputs.build_arm64 }}" == "true" ]; then
+              if [ -n "$PLATFORMS_CSV" ]; then
+                PLATFORMS_CSV="$PLATFORMS_CSV,linux/arm64"
+              else
+                PLATFORMS_CSV="linux/arm64"
+              fi
+            fi
+            echo "Using user-selected platforms: $PLATFORMS_CSV"
+          elif [ -n "${{ env.PLATFORMS_OVERRIDE }}" ]; then
+            PLATFORMS_CSV="${{ env.PLATFORMS_OVERRIDE }}"
+            echo "Using overridden platforms: $PLATFORMS_CSV"
+          elif [ "${{ github.event_name }}" != "release" ]; then
+            PLATFORMS_CSV="linux/amd64"
+            echo "Using default platforms for non-release: $PLATFORMS_CSV"
+          else
+            PLATFORMS_CSV="linux/amd64,linux/arm64"
+            echo "Using default platforms: $PLATFORMS_CSV"
+          fi
+          JSON_ARRAY="[\"$(echo $PLATFORMS_CSV | sed 's/,/\",\"/g')\"]"
+          echo "platforms=$JSON_ARRAY" >> $GITHUB_OUTPUT
+
+  build_images:
+    name: Build container images
+    runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-latest' || 'ubuntu-latest-arm64' }}
+    needs: [determine_platforms, prepare_build_vars]
+    env: # Define IMAGE_TAG at job level using output from prepare_build_vars
+      IMAGE_TAG: ${{ needs.prepare_build_vars.outputs.image_tag }}
+    outputs:
+      image_tag: ${{ needs.prepare_build_vars.outputs.image_tag }} # Output the determined image_tag
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        platform: ${{ fromJson(needs.determine_platforms.outputs.platforms) }}
+        daemon:
+          - name: scale-daemon
+            path: ./scale_daemon
+          - name: printer-daemon
+            path: ./printer_daemon
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ matrix.platform }}
+
+      - name: Sanitize platform for tag
+        id: sanitize_platform
+        run: echo "platform_sanitized=$(echo ${{ matrix.platform }} | tr '/' '-')" >> $GITHUB_OUTPUT
+
+      - name: Build and cache candidate image - ${{ matrix.daemon.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.daemon.path }}
+          file: ${{ matrix.daemon.path }}/Containerfile
+          platforms: ${{ matrix.platform }}
+          push: false
+          tags: ${{ matrix.daemon.name }}:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max,image-manifest=true,oci-mediatypes=true
+          target: final
+
+      - name: Build and cache tester image - ${{ matrix.daemon.name }}
+        if: github.event_name != 'release' # Only build tester if not a release
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.daemon.path }}
+          file: ${{ matrix.daemon.path }}/Containerfile
+          platforms: ${{ matrix.platform }}
+          push: false
+          tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max,image-manifest=true,oci-mediatypes=true
+          target: tester
+
+  call_unit_test_workflow:
+    name: Call Unit Test Workflow
+    if: github.event_name != 'release' # Only call if not a release
+    uses: ./.github/workflows/unit-test.yml
+    needs: [build_images, prepare_build_vars, determine_platforms] # build_images already needs prepare_build_vars and determine_platforms
+    permissions:
+      contents: read
+    with:
+      image_tag: ${{ needs.prepare_build_vars.outputs.image_tag }} # Use tag from prepare_build_vars
+      platforms: ${{ needs.determine_platforms.outputs.platforms }}
+    # secrets: inherit
+
+  call_publish_workflow:
+    name: Call Publish Workflow
+    if: github.event_name == 'release' # Only call if it is a release
+    uses: ./.github/workflows/publish.yml
+    needs: [build_images, prepare_build_vars, determine_platforms]
+    permissions:
+      contents: read
+      packages: write # For pushing to GHCR
+    secrets: # Pass the GITHUB_TOKEN to the callable workflow
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    with:
+      image_tag: ${{ needs.prepare_build_vars.outputs.image_tag }}
+      platforms: ${{ needs.determine_platforms.outputs.platforms }}

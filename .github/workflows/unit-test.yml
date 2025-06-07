@@ -1,0 +1,78 @@
+name: Unit Test Images
+
+permissions:
+  contents: read # Workflow-level read permission for checkout
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        description: 'The image tag to use for tests (e.g., ci-xxxxxxx)'
+        required: true
+        type: string
+      platforms:
+        description: 'The platforms the images were built for'
+        required: true
+        type: string
+
+env:
+  IMAGE_TAG: ${{ inputs.image_tag }}
+
+jobs:
+  unit_test_images:
+    name: Run unit tests
+    runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-latest' || 'ubuntu-latest-arm64' }}
+    permissions:
+      contents: read # No package:read permission needed
+    strategy:
+      matrix:
+        platform: ${{ fromJson(inputs.platforms) }}
+        daemon:
+          - name: scale-daemon
+            path: ./scale_daemon
+          - name: printer-daemon
+            path: ./printer_daemon
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ matrix.platform }}
+
+      - name: Sanitize platform for tag
+        id: sanitize_platform
+        run: echo "platform_sanitized=$(echo ${{ matrix.platform }} | tr '/' '-')" >> $GITHUB_OUTPUT
+
+      # Log in to GitHub Container Registry step removed
+
+      - name: Load tester image from cache - ${{ matrix.daemon.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.daemon.path }}
+          file: ${{ matrix.daemon.path }}/Containerfile
+          platforms: ${{ matrix.platform }}
+          target: tester
+          tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
+          load: true # Load image into local Docker daemon from cache
+          push: false # Do not push
+          cache-from: type=gha # Source from GHA cache
+
+      - name: Run unit tests - ${{ matrix.daemon.name }}
+        run: |
+          docker run --rm ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
+
+  call_integration_test_workflow: # Renamed for clarity, this job IS the call
+    name: Call Integration Test Workflow
+    uses: ./.github/workflows/integration-test.yml # Reusable workflow called at job level
+    needs: unit_test_images
+    permissions:
+      contents: read # Permissions for the token passed to the called workflow
+    with:
+      image_tag: ${{ inputs.image_tag }} # Use inputs from workflow_call
+      platforms: ${{ inputs.platforms }} # Use inputs from workflow_call
+    # secrets: inherit # If secrets need to be passed

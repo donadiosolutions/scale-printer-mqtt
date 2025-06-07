@@ -1,0 +1,101 @@
+name: Integration Test
+
+permissions:
+  contents: read # Workflow-level read permission for checkout
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        description: 'The image tag to use for tests (e.g., ci-xxxxxxx)'
+        required: true
+        type: string
+      platforms:
+        description: 'The platforms the images were built for'
+        required: true
+        type: string
+
+env:
+  IMAGE_TAG: ${{ inputs.image_tag }}
+
+jobs:
+  integration_test:
+    name: Run integration test with Compose
+    runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-latest' || 'ubuntu-latest-arm64' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read # No package:read permission needed
+    strategy:
+      matrix:
+        platform: ${{ fromJson(inputs.platforms) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ matrix.platform }}
+
+      - name: Sanitize platform for tag
+        id: sanitize_platform
+        run: echo "platform_sanitized=$(echo ${{ matrix.platform }} | tr '/' '-')" >> $GITHUB_OUTPUT
+
+      # Log in to GitHub Container Registry step removed
+
+      - name: Load scale-daemon image from cache
+        uses: docker/build-push-action@v6
+        with:
+          context: ./scale_daemon # Context needed for cache key resolution
+          file: ./scale_daemon/Containerfile
+          platforms: ${{ matrix.platform }}
+          target: final
+          tags: scale-daemon:ci
+          load: true # Load image into local Docker daemon from cache
+          push: false # Do not push
+          cache-from: type=gha # Source from GHA cache
+
+      - name: Load printer-daemon image from cache
+        uses: docker/build-push-action@v6
+        with:
+          context: ./printer_daemon # Context needed for cache key resolution
+          file: ./printer_daemon/Containerfile
+          platforms: ${{ matrix.platform }}
+          target: final
+          tags: printer-daemon:ci
+          load: true # Load image into local Docker daemon from cache
+          push: false # Do not push
+          cache-from: type=gha # Source from GHA cache
+
+      - name: Install Docker's Compose
+        run: |
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+              | sudo gpg --dearmor \
+              -o /usr/share/keyrings/docker-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+              | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update
+            sudo apt-get remove -y moby-compose || echo "moby-compose not found, proceeding."
+            sudo apt-get install -y docker-compose-plugin
+
+      - name: Prepare .env file for Compose
+        run: |
+          echo "MOCK_SERIAL_DEVICES=${{ vars.MOCK_SERIAL_DEVICES || 'true' }}" > .env # Use repo var or default
+          echo "RUN_INTEGRATION_TEST=${{ vars.RUN_INTEGRATION_TEST || 'true' }}" >> .env # Use repo var or default
+          echo "Generated .env file for Compose:"
+          cat .env
+
+      - name: Pull eclipse-mosquitto image
+        run: docker pull eclipse-mosquitto:2.0.18
+
+      - name: Run integration test with Compose
+        run: |
+          docker compose -f compose.yaml up --pull never --abort-on-container-exit --exit-code-from scale-daemon --timeout 45
+
+      - name: Compose tear down
+        if: always()
+        run: |
+          docker compose -f compose.yaml down
