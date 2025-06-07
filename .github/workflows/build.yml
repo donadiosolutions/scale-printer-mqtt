@@ -89,7 +89,7 @@ jobs:
 
   build_images:
     name: Build container images
-    runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-latest' || 'ubuntu-latest-arm64' }}
+    runs-on: ${{ (matrix.platform == 'linux/arm64' && 'ubuntu-latest-arm64') || 'ubuntu-latest' }}
     needs: [determine_platforms, prepare_build_vars]
     env: # Define IMAGE_TAG at job level using output from prepare_build_vars
       IMAGE_TAG: ${{ needs.prepare_build_vars.outputs.image_tag }}
