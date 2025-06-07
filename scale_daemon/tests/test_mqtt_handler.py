@@ -115,6 +115,24 @@ class TestScaleMqttHandler(unittest.TestCase):
         self.handler._on_message(self.mock_client_instance, None, mock_msg)
         self.assertTrue(self.mqtt_to_serial_queue.empty())
 
+    def test_on_publish_callback_signature(self):
+        """
+        Tests that the _on_publish callback can be called with the expected
+        arguments from the paho-mqtt library, preventing signature mismatch errors.
+        """
+        self.handler._setup_client()
+        try:
+            # Simulate a call from paho-mqtt with all possible arguments
+            self.handler._on_publish(
+                self.mock_client_instance,
+                "some_userdata",
+                123,           # mid
+                0,             # reason_code
+                None           # properties
+            )
+        except TypeError as e:
+            self.fail(f"_on_publish callback raised TypeError unexpectedly: {e}")
+
     def test_run_connects_and_subscribes(self):
         # is_connected will be called once before connect, should return False.
         # After connect, mock_connect will set return_value to True.
