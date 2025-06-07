@@ -171,4 +171,4 @@ jobs:
     with:
       image_tag: ${{ needs.prepare_build_vars.outputs.image_tag }}
       platforms: ${{ needs.determine_platforms.outputs.platforms }}
-# Test comment for ACTIONS.md hook
+# Test comment to trigger pre-commit hook
