@@ -75,15 +75,17 @@ jobs:
           elif [ -n "${{ env.PLATFORMS_OVERRIDE }}" ]; then
             PLATFORMS_CSV="${{ env.PLATFORMS_OVERRIDE }}"
             echo "Using overridden platforms: $PLATFORMS_CSV"
-          elif [ "${{ github.event_name }}" != "release" ]; then
-            PLATFORMS_CSV="linux/amd64"
-            echo "Using default platforms for non-release: $PLATFORMS_CSV"
-          else
+          elif [ "${{ github.event_name }}" == "release" ]; then
             PLATFORMS_CSV="linux/amd64,linux/arm64"
-            echo "Using default platforms: $PLATFORMS_CSV"
+            echo "Using default platforms for release: $PLATFORMS_CSV"
+          elif [ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/master" ]; then
+            PLATFORMS_CSV="linux/amd64,linux/arm64"
+            echo "Using default platforms for master branch push: $PLATFORMS_CSV"
+          else
+            PLATFORMS_CSV="linux/amd64"
+            echo "Using default platforms for other events: $PLATFORMS_CSV"
           fi
-          JSON_ARRAY="[\"$(echo $PLATFORMS_CSV | sed 's/,/\",\"/g')\"]"
-          echo "platforms=$JSON_ARRAY" >> $GITHUB_OUTPUT
+          echo "platforms=$PLATFORMS_CSV" >> $GITHUB_OUTPUT
 
   build_images:
     name: Build container images
@@ -97,7 +99,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        platform: ${{ fromJson(needs.determine_platforms.outputs.platforms) }}
+        platform: ${{ fromJson(format('["{0}"]', needs.determine_platforms.outputs.platforms)) }}
         daemon:
           - name: scale-daemon
             path: ./scale_daemon
@@ -169,3 +171,4 @@ jobs:
     with:
       image_tag: ${{ needs.prepare_build_vars.outputs.image_tag }}
       platforms: ${{ needs.determine_platforms.outputs.platforms }}
+# Test comment to trigger pre-commit hook
