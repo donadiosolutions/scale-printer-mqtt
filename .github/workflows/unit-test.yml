@@ -21,7 +21,7 @@ env:
 jobs:
   unit_test_images:
     name: Run unit tests
-    runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-latest' || 'ubuntu-latest-arm64' }}
+    runs-on: ${{ (matrix.platform == 'linux/arm64' && 'ubuntu-latest-arm64') || 'ubuntu-latest' }}
     permissions:
       contents: read # No package:read permission needed
     strategy:
@@ -55,7 +55,7 @@ jobs:
         with:
           context: ${{ matrix.daemon.path }}
           file: ${{ matrix.daemon.path }}/Containerfile
-          platforms: ${{ matrix.platform }}
+          # platforms: ${{ matrix.platform }} # Cannot be used with --load
           target: tester
           tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
           load: true # Load image into local Docker daemon from cache
