@@ -61,8 +61,8 @@ class ScaleMqttHandler(threading.Thread):
         except Exception as e:
             logging.error(f"Error processing MQTT message: {e}")
 
-    def _on_publish(self, client, userdata, mid):
-        logging.debug(f"MQTT message published successfully (MID: {mid}).")
+    def _on_publish(self, client, userdata, mid, reason_code, properties=None):
+        logging.debug(f"MQTT message published successfully (MID: {mid}, ReasonCode: {reason_code}).")
 
     def _setup_client(self):
         try:
