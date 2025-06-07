@@ -66,7 +66,7 @@ jobs:
         with:
           context: ${{ matrix.daemon.path }}
           file: ${{ matrix.daemon.path }}/Containerfile
-          platforms: ${{ fromJson(inputs.platforms) }} # Build for all platforms
+          platforms: ${{ join(fromJson(inputs.platforms), ',') }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
