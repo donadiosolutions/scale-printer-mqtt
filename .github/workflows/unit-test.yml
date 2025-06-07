@@ -26,7 +26,7 @@ jobs:
       contents: read # No package:read permission needed
     strategy:
       matrix:
-        platform: ${{ fromJson(format('["{0}"]', inputs.platforms)) }}
+        platform: ${{ fromJson(inputs.platforms) }}
         daemon:
           - name: scale-daemon
             path: ./scale_daemon
@@ -74,5 +74,5 @@ jobs:
       contents: read # Permissions for the token passed to the called workflow
     with:
       image_tag: ${{ inputs.image_tag }} # Use inputs from workflow_call
-      platforms: ${{ inputs.platforms }} # Use inputs from workflow_call
+      platforms: ${{ toJson(inputs.platforms) }} # Use inputs from workflow_call
     # secrets: inherit # If secrets need to be passed
