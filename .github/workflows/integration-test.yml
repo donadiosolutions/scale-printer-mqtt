@@ -53,7 +53,7 @@ jobs:
           file: ./scale_daemon/Containerfile
           platforms: ${{ matrix.platform }}
           target: final
-          tags: scale-daemon:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
+          tags: scale-daemon:ci
           load: true # Load image into local Docker daemon from cache
           push: false # Do not push
           cache-from: type=gha # Source from GHA cache
@@ -65,7 +65,7 @@ jobs:
           file: ./printer_daemon/Containerfile
           platforms: ${{ matrix.platform }}
           target: final
-          tags: printer-daemon:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
+          tags: printer-daemon:ci
           load: true # Load image into local Docker daemon from cache
           push: false # Do not push
           cache-from: type=gha # Source from GHA cache
@@ -83,17 +83,17 @@ jobs:
 
       - name: Prepare .env file for Compose
         run: |
-          echo "IMAGE_TAG=${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}" > .env
-          echo "SCALE_DAEMON_IMAGE_NAME=scale-daemon" >> .env
-          echo "PRINTER_DAEMON_IMAGE_NAME=printer-daemon" >> .env
-          echo "MOCK_SERIAL_DEVICES=${{ vars.MOCK_SERIAL_DEVICES || 'true' }}" >> .env # Use repo var or default
+          echo "MOCK_SERIAL_DEVICES=${{ vars.MOCK_SERIAL_DEVICES || 'true' }}" > .env # Use repo var or default
           echo "RUN_INTEGRATION_TEST=${{ vars.RUN_INTEGRATION_TEST || 'true' }}" >> .env # Use repo var or default
           echo "Generated .env file for Compose:"
           cat .env
 
+      - name: Pull eclipse-mosquitto image
+        run: docker pull eclipse-mosquitto:2.0.18
+
       - name: Run integration test with Compose
         run: |
-          docker compose -f compose.yaml up --abort-on-container-exit --exit-code-from scale-daemon --timeout 45
+          docker compose -f compose.yaml up --pull never --abort-on-container-exit --exit-code-from scale-daemon --timeout 45
 
       - name: Compose tear down
         if: always()

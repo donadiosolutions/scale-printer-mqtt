@@ -9,6 +9,18 @@ on:
     types: [checks_requested]
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      build_amd64:
+        description: 'Build for amd64'
+        required: true
+        type: boolean
+        default: true
+      build_arm64:
+        description: 'Build for arm64'
+        required: true
+        type: boolean
+        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -41,23 +53,37 @@ jobs:
       contents: read
     outputs:
       platforms: ${{ steps.build_platforms.outputs.platforms }}
-      platforms_for_display: ${{ steps.build_platforms.outputs.platforms_for_display }}
     steps:
       - name: Process platform list and overrides
         id: build_platforms
         env:
           PLATFORMS_OVERRIDE: ${{ env.PLATFORMS_OVERRIDE || '' }}
         run: |
-          if [ -n "${{ env.PLATFORMS_OVERRIDE }}" ]; then
+          PLATFORMS_CSV=""
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            if [ "${{ github.event.inputs.build_amd64 }}" == "true" ]; then
+              PLATFORMS_CSV="linux/amd64"
+            fi
+            if [ "${{ github.event.inputs.build_arm64 }}" == "true" ]; then
+              if [ -n "$PLATFORMS_CSV" ]; then
+                PLATFORMS_CSV="$PLATFORMS_CSV,linux/arm64"
+              else
+                PLATFORMS_CSV="linux/arm64"
+              fi
+            fi
+            echo "Using user-selected platforms: $PLATFORMS_CSV"
+          elif [ -n "${{ env.PLATFORMS_OVERRIDE }}" ]; then
             PLATFORMS_CSV="${{ env.PLATFORMS_OVERRIDE }}"
             echo "Using overridden platforms: $PLATFORMS_CSV"
+          elif [ "${{ github.event_name }}" != "release" ]; then
+            PLATFORMS_CSV="linux/amd64"
+            echo "Using default platforms for non-release: $PLATFORMS_CSV"
           else
             PLATFORMS_CSV="linux/amd64,linux/arm64"
             echo "Using default platforms: $PLATFORMS_CSV"
           fi
           JSON_ARRAY="[\"$(echo $PLATFORMS_CSV | sed 's/,/\",\"/g')\"]"
           echo "platforms=$JSON_ARRAY" >> $GITHUB_OUTPUT
-          echo "platforms_for_display=$(echo $PLATFORMS_CSV | tr ',' ' ')" >> $GITHUB_OUTPUT
 
   build_images:
     name: Build container images
