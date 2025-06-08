@@ -26,10 +26,10 @@ jobs:
       matrix:
         daemon:
           - name: scale-daemon
-            file: ./scale_daemon/Containerfile
+            path: ./scale_daemon
             image_name: scale-daemon
           - name: printer-daemon
-            file: ./printer_daemon/Containerfile
+            path: ./printer_daemon
             image_name: printer-daemon
 
     steps:
@@ -64,8 +64,8 @@ jobs:
       - name: Build and push ${{ matrix.daemon.name }} image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ${{ matrix.daemon.file }}
+          context: ${{ matrix.daemon.path }}
+          file: ${{ matrix.daemon.path }}/Containerfile
           platforms: ${{ join(fromJson(inputs.platforms), ',') }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}

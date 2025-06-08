@@ -104,9 +104,9 @@ jobs:
         platform: ${{ fromJson(needs.determine_platforms.outputs.platforms) }}
         daemon:
           - name: scale-daemon
-            file: ./scale_daemon/Containerfile
+            path: ./scale_daemon
           - name: printer-daemon
-            file: ./printer_daemon/Containerfile
+            path: ./printer_daemon
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -126,8 +126,8 @@ jobs:
       - name: Build and cache candidate image - ${{ matrix.daemon.name }}
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ${{ matrix.daemon.file }}
+          context: ${{ matrix.daemon.path }}
+          file: ${{ matrix.daemon.path }}/Containerfile
           platforms: ${{ matrix.platform }}
           push: false
           tags: ${{ matrix.daemon.name }}:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
@@ -139,8 +139,8 @@ jobs:
         if: github.event_name != 'release' # Only build tester if not a release
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ${{ matrix.daemon.file }}
+          context: ${{ matrix.daemon.path }}
+          file: ${{ matrix.daemon.path }}/Containerfile
           platforms: ${{ matrix.platform }}
           push: false
           tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
