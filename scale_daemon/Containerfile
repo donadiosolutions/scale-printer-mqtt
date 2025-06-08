@@ -22,7 +22,7 @@ RUN poetry config virtualenvs.in-project true --local
 RUN poetry install --no-interaction --no-ansi --no-dev --only main --no-root
 
 # Copy the source code
-COPY scale_daemon/src/ ./src/
+COPY src/scale_daemon/ ./src/scale_daemon/
 
 # STAGE 2: Tester
 FROM builder AS tester
@@ -31,7 +31,7 @@ WORKDIR /app
 # Install dev dependencies, including test dependencies
 RUN poetry install --no-interaction --no-ansi --with dev --no-root
 # Copy the tests
-COPY scale_daemon/tests/ ./tests/
+COPY tests/scale_daemon/ ./tests/scale_daemon/
 # Set PYTHONPATH for tests to find modules
 ENV PYTHONPATH="/app/src"
 # Set default command to run tests
