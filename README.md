@@ -55,17 +55,19 @@ scale-printer-mqtt/
 *   Access to an MQTTv5 broker (or use the provided `docker-compose.yml` for a local one)
 *   Serial devices (scale and printer) or emulated equivalents. Udev rules should be configured on host systems to provide stable device paths (e.g., `/dev/ttyUSB_SCALE`, `/dev/ttyUSB_PRINTER`).
 
-## Quickstart Guide
+## Local Development and Testing
 
-### 1. Configure Daemons
+This section provides instructions for setting up and running the daemons on your local machine for development or testing purposes.
 
-Constants for device paths, MQTT broker details (host, port, username, password), and topic names are defined at the beginning of:
-*   `scale_daemon/src/scale_daemon/main.py`
-*   `printer_daemon/src/printer_daemon/main.py`
+### Prerequisites
 
-Update these constants to match your environment. For the MQTT broker, ensure it's accessible and configured for TLS with basic authentication.
+*   Python 3.12+
+*   Poetry
+*   Docker or Podman (for container-based testing)
+*   Access to an MQTTv5 broker (or use the provided `compose.yaml` for a local one)
+*   Serial devices (scale and printer) or emulated equivalents.
 
-### 2. Install Dependencies (Local Development)
+### 1. Install Dependencies
 
 Navigate to each daemon's directory and install dependencies using Poetry:
 
@@ -77,18 +79,47 @@ poetry install
 cd ..
 ```
 
-### 3. Running Daemons Locally (for development/testing without containers)
+### 2. Configure Environment
 
-You can run each daemon directly using Poetry:
+The daemons are configured using environment variables. The following variables are available, with default values used if not set:
+
+| Environment Variable      | Description                               | Default Value                  |
+| ------------------------- | ----------------------------------------- | ------------------------------ |
+| `MQTT_BROKER_HOST`        | MQTT broker hostname or IP address.       | `mqtt.example.com`             |
+| `MQTT_BROKER_PORT`        | MQTT broker port.                         | `8883`                         |
+| `MQTT_USERNAME`           | Username for MQTT authentication.         | `scale_user`/`printer_user`    |
+| `MQTT_PASSWORD`           | Password for MQTT authentication.         | `scale_password`/`printer_password` |
+| `MQTT_USE_TLS`            | Set to `true` or `false` to enable/disable TLS. | `true`                         |
+| `MQTT_DATA_TOPIC`         | Topic for publishing scale data.          | `laboratory/scale/data`        |
+| `MQTT_COMMAND_TOPIC`      | Topic for receiving commands for the scale. | `laboratory/scale/command`     |
+| `MQTT_PRINT_TOPIC`        | Topic the printer subscribes to.          | `laboratory/scale/data`        |
+| `SERIAL_DEVICE_PATH`      | Path to the serial device.                | `/dev/ttyUSB_SCALE` or `/dev/ttyUSB_PRINTER` |
+| `MOCK_SERIAL_DEVICES`     | Set to `true` to use mock serial devices for testing without hardware. | `false` |
+
+Create a `.env` file in the root of the project to manage your local configuration. For example:
+
+```dotenv
+# .env
+MQTT_BROKER_HOST=localhost
+MQTT_BROKER_PORT=1883
+MQTT_USERNAME=scale_user
+MQTT_PASSWORD=your_scale_password
+MQTT_USE_TLS=false
+MOCK_SERIAL_DEVICES=true
+```
+
+### 3. Running the Daemons Locally
+
+You can run each daemon directly using Poetry's script runner:
 
 ```bash
 # Terminal 1: Scale Daemon
 cd scale_daemon
-poetry run python src/scale_daemon/main.py
+poetry run scale-daemon
 
 # Terminal 2: Printer Daemon
 cd printer_daemon
-poetry run python src/printer_daemon/main.py
+poetry run printer-daemon
 ```
 
 ### 4. Building and Running with Docker/Podman
@@ -115,29 +146,53 @@ podman run -d --rm --name printer_daemon_instance --device /dev/ttyUSB_PRINTER:/
 ```
 *Note: `--device` mapping and permissions might require running Podman/Docker with sufficient privileges or specific SELinux/AppArmor configurations.*
 
+### 4. Running Unit Tests
+
+Run unit tests from within each daemon's directory:
+
+```bash
+# For the scale daemon
+cd scale_daemon
+poetry run pytest
+
+# For the printer daemon
+cd printer_daemon
+poetry run pytest
+```
+
 ### 5. Integration Testing with Docker Compose
 
-A `docker-compose.yml` file is provided to set up a local Mosquitto MQTT broker and run both daemons for integration testing.
+A `compose.yaml` file is provided to run a full integration test suite, including a Mosquitto MQTT broker.
 
-**Important:**
-1.  The Mosquitto configuration in `mosquitto/config/mosquitto.conf` uses a password file. You need to generate `mosquitto/config/mosquitto_passwd` with appropriate credentials for `scale_user` and `printer_user` that match the constants in the Python code.
-    Example commands (run from the project root, requires `mosquitto-clients` package for `mosquitto_passwd`):
+**Setup:**
+
+1.  **Generate MQTT Credentials**: The Mosquitto broker requires a password file. Create it with the users `scale_user` and `printer_user`.
+
     ```bash
-    mkdir -p mosquitto/config # if not exists
-    mosquitto_passwd -c -b mosquitto/config/mosquitto_passwd scale_user scale_password
-    mosquitto_passwd -b mosquitto/config/mosquitto_passwd printer_user printer_password
+    mkdir -p mosquitto/config
+    mosquitto_passwd -c -b mosquitto/config/mosquitto_passwd scale_user your_scale_password
+    mosquitto_passwd -b mosquitto/config/mosquitto_passwd printer_user your_printer_password
     ```
-    *(Replace `scale_password` and `printer_password` with the actual passwords defined in the Python constants if they differ from these examples).*
+    *(Replace `your_..._password` with secure passwords)*
 
-2.  For the daemons to connect to this local Docker Compose Mosquitto instance (named `mosquitto` on port `1883`, non-TLS), you would typically need to:
-    *   Modify the `MQTT_BROKER_HOST`, `MQTT_BROKER_PORT` constants in the Python `main.py` files of each daemon to point to `mosquitto` and `1883` respectively.
-    *   Modify the Python code to disable TLS for this local test connection (e.g., by adding a conditional check or an environment variable).
-    *   Alternatively, configure the Mosquitto container in `docker-compose.yml` to use TLS and listen on port 8883, providing necessary certificates.
+2.  **Configure Test Environment**: Create a `.env` file in the project root and set the following variables:
+    ```dotenv
+    # .env for integration testing
+    MOCK_SERIAL_DEVICES=true
+    RUN_INTEGRATION_TEST=true
+    MQTT_PASSWORD_SCALE=your_scale_password
+    MQTT_PASSWORD_PRINTER=your_printer_password
+    ```
 
-To run the integration test environment:
+**Run the Test:**
+
+Execute the following command to build the images and run the tests:
+
 ```bash
-docker-compose up --build
+docker-compose -f compose.yaml up --build --abort-on-container-exit
 ```
+
+The test script within the `scale-daemon` will run, and the exit code will indicate success (0) or failure (non-zero).
 
 ### 6. Kubernetes Deployment
 
@@ -150,13 +205,17 @@ Refer to the `values.yaml` and `NOTES.txt` within the chart directory for config
 
 ## Development
 
-*   **Unit Tests**: Run unit tests from within each daemon's directory using `poetry run pytest`. Tests are also executed during the Docker image build process.
 *   **Linting/Formatting**: Black and Flake8 are included as dev dependencies.
     ```bash
     # Inside scale_daemon or printer_daemon directory
     poetry run black src/ tests/
     poetry run flake8 src/ tests/
     ```
+*   **Pre-commit Hooks**: This project uses `pre-commit` to enforce code quality standards. Install the hooks with:
+    ```bash
+    pre-commit install
+    ```
+>>>>>>> 9532f79 (Refactor: Update README with clearer local testing instructions)
 
 ## Contributing
 

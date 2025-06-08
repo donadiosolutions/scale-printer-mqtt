@@ -1,8 +1,8 @@
 import logging
-import threading
 import queue
 import time
 import os
+from dotenv import load_dotenv
 
 from .serial_handler import PrinterSerialHandler
 from .mqtt_handler import PrinterMqttHandler
@@ -19,7 +19,8 @@ MQTT_BROKER_PORT_DEFAULT = 8883
 MQTT_USERNAME_DEFAULT = "printer_user"
 MQTT_PASSWORD_DEFAULT = "printer_password"
 MQTT_CLIENT_ID_DEFAULT = "printer_daemon_client"
-MQTT_PRINT_TOPIC_DEFAULT = "laboratory/scale/data" # Subscribes to the scale's data topic
+# Subscribes to the scale's data topic
+MQTT_PRINT_TOPIC_DEFAULT = "laboratory/scale/data"
 MQTT_QOS_DEFAULT = 2
 MQTT_KEEPALIVE_DEFAULT = 60  # seconds
 MQTT_USE_TLS_DEFAULT = True
@@ -40,6 +41,7 @@ def setup_logging():
 
 def main():
     """Main function to start the daemon."""
+    load_dotenv()
     setup_logging()
     logging.info("Starting Printer Daemon...")
 
@@ -53,19 +55,31 @@ def main():
     qos = int(os.environ.get("MQTT_QOS", MQTT_QOS_DEFAULT))
     keepalive = int(os.environ.get("MQTT_KEEPALIVE", MQTT_KEEPALIVE_DEFAULT))
     use_tls_str = os.environ.get("MQTT_USE_TLS", str(MQTT_USE_TLS_DEFAULT))
-    use_tls = use_tls_str.lower() in ('true', '1', 'yes')
+    use_tls = use_tls_str.lower() in ("true", "1", "yes")
 
-    logging.info(f"MQTT Config: Host={broker_host}, Port={broker_port}, User={username}, TLS={use_tls}")
+    logging.info(
+        f"MQTT Config: Host={broker_host}, Port={broker_port}, "
+        f"User={username}, TLS={use_tls}"
+    )
     logging.info(f"MQTT Topics: PrintTopic={print_topic}, QoS={qos}")
 
     serial_handler = PrinterSerialHandler(
-        SERIAL_DEVICE_PATH, SERIAL_BAUDRATE, SERIAL_TIMEOUT,
-        mqtt_to_serial_queue
+        SERIAL_DEVICE_PATH,
+        SERIAL_BAUDRATE,
+        SERIAL_TIMEOUT,
+        mqtt_to_serial_queue,
     )
     mqtt_handler = PrinterMqttHandler(
-        broker_host, broker_port, username, password,
-        client_id, print_topic, qos,
-        keepalive, mqtt_to_serial_queue, use_tls=use_tls
+        broker_host,
+        broker_port,
+        username,
+        password,
+        client_id,
+        print_topic,
+        qos,
+        keepalive,
+        mqtt_to_serial_queue,
+        use_tls=use_tls,
     )
 
     serial_handler.start()
