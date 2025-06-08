@@ -29,9 +29,9 @@ jobs:
         platform: ${{ fromJson(inputs.platforms) }}
         daemon:
           - name: scale-daemon
-            path: ./scale_daemon
+            file: ./scale_daemon/Containerfile
           - name: printer-daemon
-            path: ./printer_daemon
+            file: ./printer_daemon/Containerfile
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -53,8 +53,8 @@ jobs:
       - name: Load tester image from cache - ${{ matrix.daemon.name }}
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.daemon.path }}
-          file: ${{ matrix.daemon.path }}/Containerfile
+          context: .
+          file: ${{ matrix.daemon.file }}
           # platforms: ${{ matrix.platform }} # Cannot be used with --load
           target: tester
           tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}

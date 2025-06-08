@@ -1,10 +1,13 @@
 [tool.poetry]
-name = "printer-daemon"
+name = "scale-printer-mqtt"
 version = "0.1.0"
-description = "Daemon to receive MQTT messages and print them to a serial printer."
+description = "MQTT-based scale and printer daemon system"
 authors = ["Cline <cline@example.com>"]
 readme = "README.md"
-packages = [{include = "printer_daemon", from = "src"}]
+packages = [
+    {include = "scale_daemon", from = "scale_daemon/src"},
+    {include = "printer_daemon", from = "printer_daemon/src"}
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -20,3 +23,15 @@ flake8 = "^7.2"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+max-line-length = 100
+
+[tool.ruff]
+max-line-length = 100
+
+[tool.isort]
+max_line_length = 100
+
+[tool.flake8]
+max-line-length = 100

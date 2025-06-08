@@ -22,7 +22,7 @@ RUN poetry config virtualenvs.in-project true --local
 RUN poetry install --no-interaction --no-ansi --no-dev --only main --no-root
 
 # Copy the source code
-COPY src/ ./src/
+COPY printer_daemon/src/ ./src/
 
 # STAGE 2: Tester
 FROM builder AS tester
@@ -31,7 +31,7 @@ WORKDIR /app
 # Install dev dependencies, including test dependencies
 RUN poetry install --no-interaction --no-ansi --with dev --no-root
 # Copy the tests
-COPY tests/ ./tests/
+COPY printer_daemon/tests/ ./tests/
 # Set PYTHONPATH for tests to find modules
 ENV PYTHONPATH="/app/src"
 # Set default command to run tests

@@ -18,6 +18,9 @@ services:
       - app_net
 
   scale-daemon:
+    build:
+      context: .
+      dockerfile: scale_daemon/Containerfile
     image: scale-daemon:ci
     container_name: scale_daemon_app
     depends_on:
@@ -49,6 +52,9 @@ services:
       - app_net
 
   printer-daemon:
+    build:
+      context: .
+      dockerfile: printer_daemon/Containerfile
     image: printer-daemon:ci
     container_name: printer_daemon_app
     depends_on:
