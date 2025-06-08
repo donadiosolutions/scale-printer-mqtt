@@ -21,17 +21,14 @@ env:
 jobs:
   unit_test_images:
     name: Run unit tests
-    runs-on: ${{ (matrix.platform == 'linux/arm64' && 'ubuntu-latest-arm64') || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.platform.runner }}
     permissions:
-      contents: read # No package:read permission needed
+      contents: read
     strategy:
       matrix:
-        platform: ${{ fromJson(inputs.platforms) }}
-        daemon:
-          - name: scale-daemon
-            path: ./scale_daemon
-          - name: printer-daemon
-            path: ./printer_daemon
+        platform:
+          - { name: "linux/amd64", runner: "ubuntu-latest" }
+          - { name: "linux/arm64", runner: "ubuntu-latest-arm64" }
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,30 +38,23 @@ jobs:
 
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Load tester image from cache
+        uses: docker/bake-action@v4
         with:
-          platforms: ${{ matrix.platform }}
+          files: |
+            ./build.hcl
+          load: true
+          push: false
+          set: |
+            *.cache-from=type=gha
+            tester.tags=tester:${{ env.IMAGE_TAG }}
+            *.platform=${{ matrix.platform.name }}
+          targets: tester
 
-      - name: Sanitize platform for tag
-        id: sanitize_platform
-        run: echo "platform_sanitized=$(echo ${{ matrix.platform }} | tr '/' '-')" >> $GITHUB_OUTPUT
-
-      # Log in to GitHub Container Registry step removed
-
-      - name: Load tester image from cache - ${{ matrix.daemon.name }}
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.daemon.path }}
-          file: ${{ matrix.daemon.path }}/Containerfile
-          # platforms: ${{ matrix.platform }} # Cannot be used with --load
-          target: tester
-          tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
-          load: true # Load image into local Docker daemon from cache
-          push: false # Do not push
-          cache-from: type=gha # Source from GHA cache
-
-      - name: Run unit tests - ${{ matrix.daemon.name }}
+      - name: Run unit tests
         run: |
-          docker run --rm ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
+          docker run --rm tester:${{ env.IMAGE_TAG }}
 
   call_integration_test_workflow: # Renamed for clarity, this job IS the call
     name: Call Integration Test Workflow

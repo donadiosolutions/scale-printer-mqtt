@@ -21,13 +21,15 @@ env:
 jobs:
   integration_test:
     name: Run integration test with Compose
-    runs-on: ${{ (matrix.platform == 'linux/arm64' && 'ubuntu-latest-arm64') || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.platform.runner }}
     timeout-minutes: 5
     permissions:
-      contents: read # No package:read permission needed
+      contents: read
     strategy:
       matrix:
-        platform: ${{ fromJson(inputs.platforms) }}
+        platform:
+          - { name: "linux/amd64", runner: "ubuntu-latest" }
+          - { name: "linux/arm64", runner: "ubuntu-latest-arm64" }
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,36 +39,22 @@ jobs:
 
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Load images from cache
+        uses: docker/bake-action@v4
         with:
-          platforms: ${{ matrix.platform }}
-
-      - name: Sanitize platform for tag
-        id: sanitize_platform
-        run: echo "platform_sanitized=$(echo ${{ matrix.platform }} | tr '/' '-')" >> $GITHUB_OUTPUT
-
-      # Log in to GitHub Container Registry step removed
-
-      - name: Load scale-daemon image from cache
-        uses: docker/build-push-action@v6
-        with:
-          context: ./scale_daemon # Context needed for cache key resolution
-          file: ./scale_daemon/Containerfile
-          target: final
-          tags: scale-daemon:ci
-          load: true # Load image into local Docker daemon from cache
-          push: false # Do not push
-          cache-from: type=gha # Source from GHA cache
-
-      - name: Load printer-daemon image from cache
-        uses: docker/build-push-action@v6
-        with:
-          context: ./printer_daemon # Context needed for cache key resolution
-          file: ./printer_daemon/Containerfile
-          target: final
-          tags: printer-daemon:ci
-          load: true # Load image into local Docker daemon from cache
-          push: false # Do not push
-          cache-from: type=gha # Source from GHA cache
+          files: |
+            ./build.hcl
+          load: true
+          push: false
+          set: |
+            *.cache-from=type=gha
+            scale-daemon.tags=scale-daemon:ci
+            printer-daemon.tags=printer-daemon:ci
+            *.platform=${{ matrix.platform.name }}
+          targets: |
+            scale-daemon
+            printer-daemon
 
       - name: Install Docker's Compose
         run: |

@@ -18,7 +18,11 @@ services:
       - app_net
 
   scale-daemon:
-    image: scale-daemon:ci
+    image: scale-daemon:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      args:
+        APP_NAME: scale_daemon
     container_name: scale_daemon_app
     depends_on:
       - mosquitto
@@ -49,7 +53,11 @@ services:
       - app_net
 
   printer-daemon:
-    image: printer-daemon:ci
+    image: printer-daemon:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      args:
+        APP_NAME: printer_daemon
     container_name: printer_daemon_app
     depends_on:
       - mosquitto

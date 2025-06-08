@@ -91,22 +91,19 @@ jobs:
 
   build_images:
     name: Build container images
-    runs-on: ${{ (matrix.platform == 'linux/arm64' && 'ubuntu-latest-arm64') || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.platform.runner }}
     needs: [determine_platforms, prepare_build_vars]
-    env: # Define IMAGE_TAG at job level using output from prepare_build_vars
+    env:
       IMAGE_TAG: ${{ needs.prepare_build_vars.outputs.image_tag }}
     outputs:
-      image_tag: ${{ needs.prepare_build_vars.outputs.image_tag }} # Output the determined image_tag
+      image_tag: ${{ needs.prepare_build_vars.outputs.image_tag }}
     permissions:
       contents: read
     strategy:
       matrix:
-        platform: ${{ fromJson(needs.determine_platforms.outputs.platforms) }}
-        daemon:
-          - name: scale-daemon
-            path: ./scale_daemon
-          - name: printer-daemon
-            path: ./printer_daemon
+        platform:
+          - { name: "linux/amd64", runner: "ubuntu-latest" }
+          - { name: "linux/arm64", runner: "ubuntu-latest-arm64" }
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -116,37 +113,21 @@ jobs:
 
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          platforms: ${{ matrix.platform }}
 
-      - name: Sanitize platform for tag
-        id: sanitize_platform
-        run: echo "platform_sanitized=$(echo ${{ matrix.platform }} | tr '/' '-')" >> $GITHUB_OUTPUT
-
-      - name: Build and cache candidate image - ${{ matrix.daemon.name }}
-        uses: docker/build-push-action@v6
+      - name: Build and cache images
+        uses: docker/bake-action@v4
         with:
-          context: ${{ matrix.daemon.path }}
-          file: ${{ matrix.daemon.path }}/Containerfile
-          platforms: ${{ matrix.platform }}
+          files: |
+            ./build.hcl
           push: false
-          tags: ${{ matrix.daemon.name }}:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max,image-manifest=true,oci-mediatypes=true
-          target: final
-
-      - name: Build and cache tester image - ${{ matrix.daemon.name }}
-        if: github.event_name != 'release' # Only build tester if not a release
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.daemon.path }}
-          file: ${{ matrix.daemon.path }}/Containerfile
-          platforms: ${{ matrix.platform }}
-          push: false
-          tags: ${{ matrix.daemon.name }}-tester:${{ env.IMAGE_TAG }}-${{ steps.sanitize_platform.outputs.platform_sanitized }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max,image-manifest=true,oci-mediatypes=true
-          target: tester
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+            *.platform=${{ matrix.platform.name }}
+            *.tags=ci-${{ github.sha }}
+          targets: |
+            default
+            tester
 
   call_unit_test_workflow:
     name: Call Unit Test Workflow

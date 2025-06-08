@@ -18,20 +18,10 @@ on:
 
 jobs:
   publish_images:
-    runs-on: ubuntu-latest # Run on a single runner
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # Needed to push to GHCR
-    strategy:
-      matrix:
-        daemon:
-          - name: scale-daemon
-            path: ./scale_daemon
-            image_name: scale-daemon
-          - name: printer-daemon
-            path: ./printer_daemon
-            image_name: printer-daemon
-
+      packages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -47,13 +37,15 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GH_TOKEN }} # Use passed secret
+          password: ${{ secrets.GH_TOKEN }}
 
-      - name: Generate image metadata for ${{ matrix.daemon.image_name }}
+      - name: Generate image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/donadiosolutions/${{ matrix.daemon.image_name }}
+          images: |
+            ghcr.io/donadiosolutions/scale-daemon
+            ghcr.io/donadiosolutions/printer-daemon
           tags: |
             type=raw,value=${{ inputs.image_tag }}
             type=raw,value=latest,enable=${{ github.repository == 'donadiosolutions/scale-printer-mqtt' && inputs.image_tag == github.event.release.tag_name && github.event.release.prerelease == false }}
@@ -61,15 +53,18 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ inputs.image_tag }}
             type=semver,pattern={{major}},value=${{ inputs.image_tag }}
 
-      - name: Build and push ${{ matrix.daemon.name }} image
-        uses: docker/build-push-action@v6
+      - name: Build and push images
+        uses: docker/bake-action@v4
         with:
-          context: ${{ matrix.daemon.path }}
-          file: ${{ matrix.daemon.path }}/Containerfile
-          platforms: ${{ join(fromJson(inputs.platforms), ',') }}
+          files: |
+            ./build.hcl
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          target: final
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+            *.platform=${{ join(fromJson(inputs.platforms), ',') }}
+            scale-daemon.tags=${{ steps.meta.outputs.tags }}
+            printer-daemon.tags=${{ steps.meta.outputs.tags }}
+            scale-daemon.labels=${{ steps.meta.outputs.labels }}
+            printer-daemon.labels=${{ steps.meta.outputs.labels }}
+          targets: default
