@@ -62,6 +62,7 @@ jobs:
             type=semver,pattern={{major}},value=${{ inputs.image_tag }}
 
       - name: Build and push ${{ matrix.daemon.name }} image
+        id: build-and-push
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.daemon.path }}
@@ -73,3 +74,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           target: final
+          build-args: |
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}

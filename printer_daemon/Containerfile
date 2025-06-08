@@ -67,10 +67,9 @@ CMD ["python", "-m", "printer_daemon.main"]
 # OCI Labels
 LABEL org.opencontainers.image.title="Printer Daemon"
 LABEL org.opencontainers.image.description="Daemon to receive MQTT messages and print them."
-LABEL org.opencontainers.image.version="0.1.0"
-LABEL org.opencontainers.image.authors="Cline <cline@example.com>"
-# LABEL org.opencontainers.image.url="URL to project page"
+LABEL org.opencontainers.image.authors="Bernardo Donadio <bernardo@donadio.solutions>"
+LABEL org.opencontainers.image.url="https://github.com/donadiosolutions/scale-printer-mqtt"
 LABEL org.opencontainers.image.source="https://github.com/donadiosolutions/scale-printer-mqtt"
 LABEL org.opencontainers.image.licenses="MIT"
-# LABEL org.opencontainers.image.vendor="Your Organization"
+LABEL org.opencontainers.image.vendor="Donadio Solutions"
 # LABEL org.opencontainers.image.created="YYYY-MM-DDTHH:MM:SSZ" # Note: This should be set dynamically during the build process

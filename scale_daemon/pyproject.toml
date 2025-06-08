@@ -2,7 +2,7 @@
 name = "scale-daemon"
 version = "0.1.0"
 description = "Daemon to read from a serial scale and publish to MQTT."
-authors = ["Cline <cline@example.com>"]
+authors = ["Bernardo Donadio <bernardo@donadio.solutions>"]
 readme = "README.md"
 packages = [{include = "scale_daemon", from = "src"}]
 

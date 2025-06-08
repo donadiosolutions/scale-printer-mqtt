@@ -16,10 +16,10 @@ home: https://github.com/donadiosolutions/scale-printer-mqtt
 sources:
   - https://github.com/donadiosolutions/scale-printer-mqtt
 
-# maintainers: # Optional
-#   - name: Your Name
-#     email: your.email@example.com
-#     url: https://your.website.com
+maintainers:
+  - name: Bernardo Donadio
+    email: bernardo@donadio.solutions
+    url: https://donadio.solutions
 
 # dependencies: # Optional, if you had subcharts
 #   - name: mosquitto

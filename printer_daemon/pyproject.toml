@@ -2,7 +2,7 @@
 name = "printer-daemon"
 version = "0.1.0"
 description = "Daemon to receive MQTT messages and print them to a serial printer."
-authors = ["Cline <cline@example.com>"]
+authors = ["Bernardo Donadio <bernardo@donadio.solutions>"]
 readme = "README.md"
 packages = [{include = "printer_daemon", from = "src"}]
 
