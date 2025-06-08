@@ -10,6 +10,10 @@ packages = [{include = "scale_daemon", from = "src"}]
 python = "^3.12"
 paho-mqtt = "^2.0.0"
 pyserial = "^3.5"
+python-dotenv = "^1.0.0"
+
+[tool.poetry.scripts]
+scale-daemon = "scale_daemon.main:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3"

@@ -1,9 +1,9 @@
 import logging
-import threading
 import queue
 import time
 import os
 import sys
+from dotenv import load_dotenv
 
 from .serial_handler import ScaleSerialHandler
 from .mqtt_handler import ScaleMqttHandler
@@ -43,15 +43,19 @@ def setup_logging():
 
 
 def stop_handlers_and_exit(exit_code, serial_h, mqtt_h):
-    logging.info(f"Integration test: Stopping threads and exiting with code {exit_code}...")
+    """Stop handlers and exit."""
+    logging.info(
+        f"Integration test: Stopping threads and exiting with code {exit_code}..."
+    )
     if mqtt_h and mqtt_h.is_alive():
         mqtt_h.stop()
-        mqtt_h.join(timeout=5) # Add timeout to join
+        mqtt_h.join(timeout=5)  # Add timeout to join
     if serial_h and serial_h.is_alive():
         serial_h.stop()
-        serial_h.join(timeout=5) # Add timeout to join
+        serial_h.join(timeout=5)  # Add timeout to join
     logging.info(f"Integration test: Exiting with {exit_code}.")
     sys.exit(exit_code)
+
 
 def run_integration_test(mqtt_handler, serial_handler, serial_to_mqtt_q):
     """Runs a defined integration test sequence."""
@@ -71,7 +75,9 @@ def run_integration_test(mqtt_handler, serial_handler, serial_to_mqtt_q):
         time.sleep(0.2)
     logging.info("Integration test: MQTT connected successfully.")
 
-    test_message = '{"type": "integration_test", "value": "ping_from_scale_daemon_test"}'
+    test_message = (
+        '{"type": "integration_test", "value": "ping_from_scale_daemon_test"}'
+    )
     logging.info(f"Integration test: Queuing test message for MQTT: {test_message}")
     serial_to_mqtt_q.put(test_message)
 
@@ -84,6 +90,7 @@ def run_integration_test(mqtt_handler, serial_handler, serial_to_mqtt_q):
 
 def main():
     """Main function to start the daemon."""
+    load_dotenv()
     setup_logging()
     logging.info("Starting Scale Daemon...")
 
@@ -94,30 +101,48 @@ def main():
     broker_port = int(os.environ.get("MQTT_BROKER_PORT", MQTT_BROKER_PORT_DEFAULT))
     username = os.environ.get("MQTT_USERNAME", MQTT_USERNAME_DEFAULT)
     password = os.environ.get("MQTT_PASSWORD", MQTT_PASSWORD_DEFAULT)
-    client_id = os.environ.get("MQTT_CLIENT_ID", MQTT_CLIENT_ID_DEFAULT) # Though client_id is often fixed per device type
+    client_id = os.environ.get(
+        "MQTT_CLIENT_ID", MQTT_CLIENT_ID_DEFAULT
+    )  # Though client_id is often fixed per device type
     data_topic = os.environ.get("MQTT_DATA_TOPIC", MQTT_DATA_TOPIC_DEFAULT)
     command_topic = os.environ.get("MQTT_COMMAND_TOPIC", MQTT_COMMAND_TOPIC_DEFAULT)
     qos = int(os.environ.get("MQTT_QOS", MQTT_QOS_DEFAULT))
     keepalive = int(os.environ.get("MQTT_KEEPALIVE", MQTT_KEEPALIVE_DEFAULT))
     use_tls_str = os.environ.get("MQTT_USE_TLS", str(MQTT_USE_TLS_DEFAULT))
-    use_tls = use_tls_str.lower() in ('true', '1', 'yes')
+    use_tls = use_tls_str.lower() in ("true", "1", "yes")
 
-    logging.info(f"MQTT Config: Host={broker_host}, Port={broker_port}, User={username}, TLS={use_tls}")
-    logging.info(f"MQTT Topics: Data={data_topic}, Command={command_topic}, QoS={qos}")
-
+    logging.info(
+        f"MQTT Config: Host={broker_host}, Port={broker_port}, "
+        f"User={username}, TLS={use_tls}"
+    )
+    logging.info(
+        f"MQTT Topics: Data={data_topic}, Command={command_topic}, QoS={qos}"
+    )
 
     serial_handler = ScaleSerialHandler(
-        SERIAL_DEVICE_PATH, SERIAL_BAUDRATE, SERIAL_TIMEOUT,
-        serial_to_mqtt_queue, mqtt_to_serial_queue
+        SERIAL_DEVICE_PATH,
+        SERIAL_BAUDRATE,
+        SERIAL_TIMEOUT,
+        serial_to_mqtt_queue,
+        mqtt_to_serial_queue,
     )
     mqtt_handler = ScaleMqttHandler(
-        broker_host, broker_port, username, password,
-        client_id, data_topic, command_topic, qos,
-        keepalive, serial_to_mqtt_queue, mqtt_to_serial_queue, use_tls=use_tls
+        broker_host,
+        broker_port,
+        username,
+        password,
+        client_id,
+        data_topic,
+        command_topic,
+        qos,
+        keepalive,
+        serial_to_mqtt_queue,
+        mqtt_to_serial_queue,
+        use_tls=use_tls,
     )
 
-    # serial_handler.start() # Moved into conditional blocks
-    # mqtt_handler.start() # Moved into conditional blocks
+    # serial_handler.start()  # Moved into conditional blocks
+    # mqtt_handler.start()  # Moved into conditional blocks
 
     if is_integration_test_mode:
         try:
