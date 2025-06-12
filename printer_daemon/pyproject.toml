@@ -17,7 +17,7 @@ printer-daemon = "printer_daemon.main:main"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4"
-pytest-cov = "^6.1"
+pytest-cov = "^6.2"
 black = "^25.1"
 flake8 = "^7.2"
 
